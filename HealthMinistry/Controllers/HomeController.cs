@@ -1,25 +1,21 @@
-﻿using DAL;
+﻿using Common;
+using DAL;
 using MSXML;
 using Oracle.DataAccess.Client;
+using RestSharp;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Web;
 using System.Web.Mvc;
 using System.Xml;
 using System.Xml.Linq;
-using RestSharp;
 
 
 
@@ -37,11 +33,11 @@ namespace HealthMinistry.Controllers
         #region variables
 
         public IDataLayer _dal = null;
-
         List<AliquotObj> _aliquotList = new List<AliquotObj>();
         private OracleCommand cmd;
         private ClientObj myClient;
-        string _errorMsg = "";
+        private string sql;
+        private string _errorMsg = "";
         string _urlApiService = ConfigurationManager.AppSettings["API_HM_INTERFACE_ADDRESS"];
         string _soapActionSample = ConfigurationManager.AppSettings["SOAP_ACTION_SAMPLE"];
         string _soapActionResult = ConfigurationManager.AppSettings["SOAP_ACTION_RESULT"];
@@ -55,6 +51,18 @@ namespace HealthMinistry.Controllers
 
         protected string[] classes = new string[] { "Attached_Document", "ATTACHED_DOCUMENT", "Report_Notes", "Test_Results", "Test_Result", "Report_Notes", "Lab_Notes", "Report_Date" };
 
+        private readonly List<string> msgList = new List<string>()
+                {
+                    "לא נמצאה תעודה עם המזהה שנשלח",
+                    "התעודה לא מאושרת,לא ניתן לשלוח למשרד הבריאות",
+                    "לתעודה של דרישה זו pdf לא נמצא מסמך ",
+                    "שגיאה בשליחת הבקשה למשרד הבריאות",
+                    "התהליך עבר בהצלחה",
+                    "failed",
+                    "נכשלה יצירת XML ראשוני לשליחה"
+                };
+        OracleConnection oraCon = new OracleConnection(System.Configuration.ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
+
         #endregion
 
 
@@ -67,92 +75,73 @@ namespace HealthMinistry.Controllers
             try
             {
                 Write("Start FcsSampleRequest");
-                string sql;
-                string uFcsMsgId;
 
                 openSqlConnection();
 
-                var oraCon = new OracleConnection(System.Configuration.ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
+                if (oraCon.State != System.Data.ConnectionState.Open) oraCon.Open();
 
-                if (oraCon.State != System.Data.ConnectionState.Open)
-                    oraCon.Open();
-
-
-
-                //building xml with barcode
+                //building xml with barcode for 1st request
                 string xmlStringBarcode = BuildInitialXML(barcode);
 
+                //adding fcs_msg - removed, stayed in git's 1st version
+                //-----------------------------------------------------
 
-                //adding fcs_msg
-                //sql = string.Format("SELECT U_FCS_MSG_ID FROM LIMS.U_FCS_MSG WHERE NAME = '{0}'", barcode);
-                //cmd = new OracleCommand(sql, oraCon);
-                //var a = cmd.ExecuteScalar();
-
-                //if (a == null)
-                //{
-
-                //    sql = "select lims.sq_U_FCS_MSG.nextval from dual";
-                //    cmd = new OracleCommand(sql, oraCon);
-                //    var uFcsMsgUser = cmd.ExecuteScalar();
-                //    U_FCS_MSG_ID = uFcsMsgUser.ToString();
-
-                //    sql = string.Format("INSERT INTO lims_sys.U_FCS_MSG (U_FCS_MSG_ID, NAME, VERSION, VERSION_STATUS) VALUES ('" + U_FCS_MSG_ID + "','" + barcode + "','{0}','{1}')", '1', 'A');
-                //    cmd = new OracleCommand(sql, oraCon);
-                //    cmd.ExecuteNonQuery();
-
-
-                //    sql = string.Format("INSERT INTO lims_sys.U_FCS_MSG_USER (U_FCS_MSG_ID) VALUES ('" + U_FCS_MSG_ID + "')");
-                //    cmd = new OracleCommand(sql, oraCon);
-                //    cmd.ExecuteNonQuery();
-
-                //}
-                //else
-                //{
-                //    U_FCS_MSG_ID = a.ToString();
-                //}
-
-
+                //sending 1st request to HM
                 var sampleRequest_result = SendRequestWithXML(xmlStringBarcode, _urlApiService, _soapActionSample, _pfxPath);
 
-                //parsing the result to xml
-                if (sampleRequest_result.Equals("false"))
-                {
-                    return "שגיאה בשליחת הבקשה למשרד הבריאות";
-                }
+                //In case of error while sending - return.
+                if (sampleRequest_result.Equals(msgList[5])) return msgList[3];
 
-                //parsing the result to xml
+                //parsing the response to xml
                 XDocument xmlDoc = XDocument.Parse(sampleRequest_result);
 
-                //parsing the xml to labSampleForm
+                //parsing the xml to labSampleForm - a HM object
                 LabSampleFormResult labSampleForm = ExtractLabSampleForm(xmlDoc);
                 if (labSampleForm == null)
-                    return "שגיאה בהמרה לאובייקט";
+                {
+                    Write($"From FcsSampleRequest: failed");
+                    return msgList[3];
+                }
 
+                //labSampleForm contains information about itself
                 if (labSampleForm.ReturnCode != "0" && labSampleForm.ReturnCode != "1")
+                {
+                    Write($"The process was completed unsuccessfully, {labSampleForm.ReturnCodeDesc} )");
                     return labSampleForm.ReturnCodeDesc;
+                }
 
+                //validiating labSampleForm object
                 var isValid = Validation(labSampleForm);
 
                 if (!isValid)
                     return _errorMsg;
 
+                //if labSampleForm is valid, parsing it to xml
                 var docXml = Create_XML(labSampleForm, barcode);
+
+                //The calling method from orderv2 proj gets the xml and proccesses it to a sdg
                 if (docXml != null)
+                {
+                    Write($"The process was completed successfully, xml string for creating sdg was sent to order_v2");
                     return docXml.xml;
+                }
 
+                //debug mode - for postman
+                //return labSampleForm.ToString();
 
-                return labSampleForm.ToString();
-
+                Write($"labSampleForm created, but docXml is null");
+                return null;
 
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                return e.Message;
+                Write($"From FcsSampleRequest: {ex.Message}");
+                return msgList[3];
             }
 
         }
 
-      
+
 
         [HttpPost]
         public string FcsResultRequest(string coaId)
@@ -160,101 +149,78 @@ namespace HealthMinistry.Controllers
 
             try
             {
+                Write("Start FcsResultRequest");
+
                 _dal = new DataLayer();
                 _dal.Connect(_cs);
 
-                Write("Start FcsResultRequest");
-
                 COA_Report coaReport = _dal.GetCoaReportById(long.Parse(coaId));
 
-                if (coaReport == null)
-                    return "לא נמצאה תעודה עם המזהה שנשלח";
+                if (coaReport == null) return msgList[0];
 
-                if (coaReport.Status != "A")
-                    return "התעודה לא מאושרת,לא ניתן לשלוח למשרד הבריאות";
+                if (coaReport.Status != "A") return msgList[1];
 
-                if (coaReport.PdfPath == null)
-                    return "לתעודה של דרישה זו pdf לא נמצא מסמך ";
+                if (coaReport.PdfPath == null) return msgList[2];
 
-                //שליחת בקשה, עיבוד התוצאה ושליחתה בחזרה למשרד הבריאות
+                //sending 2nd request (result) proccessing response and sending back to HM
+                var resultRequest1_response = SendRequestWithPDF(coaReport.PdfPath);
 
-                var resultRequest1_result = SendRequestWithPDF(coaReport.PdfPath);
+                //sending request failed
+                if (resultRequest1_response.Equals("failed")) return msgList[3];
 
+                //3rd request to HM - proccessed response from 2nd request:
 
-                if (resultRequest1_result.Equals("false"))
-                    return "שגיאה בשליחת הבקשה למשרד הבריאות";
+                //parsing 2nd response to unique xml format
+                var xmlFile = ParseToXML_res_1(coaReport, resultRequest1_response);
 
-                //parsing the result to xml
-                var xmlFile = ParseToXML_res_1(coaReport, resultRequest1_result);
-
-                //שליחה למשרד הבריאות - פעם שניה.
+                //parsing the xml to string
                 string xmlString = xmlFile.OuterXml;
 
-                string resultRequest2_result = SendRequestWithXML(xmlString, _urlApiService, _soapActionResult, _pfxPath);
+                //sending 3rd request to HM, with proccessed string
+                string responseFrom2ndResReq = SendRequestWithXML(xmlString, _urlApiService, _soapActionResult, _pfxPath);
 
+                //loading 3rd response to xml (for easy serching information)
                 XmlDocument xmlDoc = new XmlDocument();
-                xmlDoc.LoadXml(resultRequest2_result);
+                xmlDoc.LoadXml(responseFrom2ndResReq);
 
                 XmlNamespaceManager nsManager = new XmlNamespaceManager(xmlDoc.NameTable);
                 nsManager.AddNamespace("a", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
 
-                // Select the node with the specified XPath
+                // Select the specified node
                 XmlNode returnCodeNode = xmlDoc.SelectSingleNode("//a:Return_Code", nsManager);
 
                 if (returnCodeNode != null)
                 {
+                    //Return_Code - tracking number to monitor the result
                     string returnCodeValue = returnCodeNode.InnerText;
+
+                    //Return_Code is 0/1 - success
                     if (returnCodeValue == "0" || returnCodeValue == "1")
-                        return "התהליך עבר בהצלחה בסייעתא דשמייא";
+                    {
+                        Write($"The process was completed successfully, return code: {returnCodeValue}");
+                        return msgList[4];
+                    }
+                    //something was wrong
                     else
                     {
-
+                        //find Return_Code_Description and return it
                         XmlNode returnCodeDescNode = xmlDoc.SelectSingleNode("//a:Return_Code_Desc", nsManager);
-
                         if (returnCodeDescNode != null)
                         {
-                            string returnCodeDescValue = returnCodeNode.InnerText;
-                            Console.WriteLine(returnCodeValue);
+                            Write($"The process was completed unsuccessfully, return code: {returnCodeValue}");
+                            return returnCodeDescNode.InnerText;
                         }
                     }
-                    
+
                 }
-                
 
-                //if (IsXmlFormat(resultRequest2_result))
-                //{
-                //    string returnCode = "";
-                //    int startIndex = resultRequest2_result.IndexOf("<a:Return_Code>");
-                //    int endIndex = resultRequest2_result.IndexOf("</a:Return_Code>");
-
-                    
-                //    if (startIndex != -1 && endIndex != -1)
-                //    {
-                //        returnCode = resultRequest2_result.Substring(startIndex,
-                //            endIndex - startIndex + "</a:Return_Code>".Length);
-                //    }
-                //    if (returnCode == "0" || returnCode == "1")
-                //        return "התהליך עבר בהצלחה";
-
-                //    else
-                //    {
-                //        string returnCode_desc = "";
-                //        int startIndex_desc = resultRequest2_result.IndexOf("<a:Return_Code_Desc>");
-                //        int endIndex_desc = resultRequest2_result.IndexOf("</a:Return_Code_Desc>");
-                //        if (startIndex != -1 && endIndex != -1)
-                //        {
-                //           return returnCode_desc = resultRequest2_result.Substring(startIndex,
-                //                endIndex - startIndex + "</a:Return_Code_Desc>".Length);
-                //        }
-                //    }
-                //}
-
-                //סוף
-                return resultRequest2_result;
+                Write($"returnCodeDescNode is null");
+                return null;
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                return e.Message;
+                Write($"From FcsResultRequest: {ex.Message}");
+                return ex.Message;
             }
 
         }
@@ -292,128 +258,142 @@ namespace HealthMinistry.Controllers
             }
             catch (Exception e)
             {
-                Write(e.Message);
-                return "נכשלה יצירת XML ראשוני לשליחה";
+                Write($"From BuildInitialXML: {e.Message}");
+                return msgList[6];
             }
         }
 
         //validation tests 
         private bool Validation(LabSampleFormResult obj)
         {
-            var oraCon = new OracleConnection(System.Configuration.ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
-
-            if (oraCon.State != System.Data.ConnectionState.Open)
+            try
             {
-                oraCon.Open();
-            }
-            string sql;
-
-            //getClient
-            string labName = ConfigurationManager.AppSettings["LAB_NAME"];
-            sql = string.Format("SELECT C.NAME AS U_SDG_CLIENT,AD.PHONE AS U_PHONE,AD.EMAIL AS U_EMAIL,AD.ADDRESS_LINE_2 AS U_ADDRESS,AD.ADDRESS_LINE_1 AS U_CONTECT_NAME,AD.ADDRESS_LINE_4 AS U_CONTACT_PHONE FROM lims_sys.ADDRESS AD INNER JOIN lims_sys.CLIENT C ON AD.ADDRESS_ITEM_ID = C.CLIENT_ID WHERE C.CLIENT_CODE = '{0}' AND ADDRESS_TYPE = '{1}'", obj.PayerID, labName);
-            cmd = new OracleCommand(sql, oraCon);
-            OracleDataReader reader3 = cmd.ExecuteReader();
-
-            if (!reader3.HasRows)
+                var _errorMsgs = new List<string>()
             {
-                _errorMsg = "לקוח לא קיים, אנא פנה למנהל מערכת";
-                return false;
-            }
-            else
-            {
-                ClientObj newClient = new ClientObj(
-                          reader3["U_SDG_CLIENT"].ToString(),
-                          reader3["U_PHONE"].ToString(),
-                          reader3["U_EMAIL"].ToString(),
-                          reader3["U_ADDRESS"].ToString(),
-                          reader3["U_CONTECT_NAME"].ToString(),
-                          reader3["U_CONTACT_PHONE"].ToString()
-                      );
-                myClient = newClient;
-            }
+                "לקוח לא קיים, אנא פנה למנהל מערכת",
+                "לא נמצאה בדיקה, אנא פנה למנהל מערכת",
+                "מזהה בדיקה לא קיים, אנא פנה למנהל מערכת"
+            };
 
-            //getTest
-            List<string> listLabTtex = new List<string>();
-
-            sql = string.Format("select FTU.u_lab_ttex FROM lims_sys.U_FCS_TEST FT INNER JOIN lims_sys.U_FCS_TEST_USER FTU ON FTU.U_FCS_TEST_ID=FT.U_FCS_TEST_ID WHERE FT.NAME = '{0}'", obj.TestSubCode);
-            cmd = new OracleCommand(sql, oraCon);
-            OracleDataReader reader = cmd.ExecuteReader();
-
-            if (!reader.HasRows)
-            {
-                _errorMsg = "לא נמצאה בדיקה, אנא פנה למנהל מערכת";
-                return false;
-            }
-            else
-            {
-                string[] arrLabTtex;
-
-                while (reader.Read())
+                if (oraCon.State != System.Data.ConnectionState.Open)
                 {
-                    string labTtex = reader["u_lab_ttex"].ToString();
-                    if (labTtex != null && labTtex != "")
-                    {
+                    oraCon.Open();
+                }
 
-                        if (labTtex.Contains(","))
+
+                //getClient
+                string labName = ConfigurationManager.AppSettings["LAB_NAME"];
+                sql = string.Format("SELECT C.NAME AS U_SDG_CLIENT,AD.PHONE AS U_PHONE,AD.EMAIL AS U_EMAIL,AD.ADDRESS_LINE_2 AS U_ADDRESS,AD.ADDRESS_LINE_1 AS U_CONTECT_NAME,AD.ADDRESS_LINE_4 AS U_CONTACT_PHONE FROM lims_sys.ADDRESS AD INNER JOIN lims_sys.CLIENT C ON AD.ADDRESS_ITEM_ID = C.CLIENT_ID WHERE C.CLIENT_CODE = '{0}' AND ADDRESS_TYPE = '{1}'", obj.PayerID, labName);
+                cmd = new OracleCommand(sql, oraCon);
+                OracleDataReader reader3 = cmd.ExecuteReader();
+
+                if (!reader3.HasRows)
+                {
+                    _errorMsg = _errorMsgs[0];
+                    return false;
+                }
+                else
+                {
+                    ClientObj newClient = new ClientObj(
+                              reader3["U_SDG_CLIENT"].ToString(),
+                              reader3["U_PHONE"].ToString(),
+                              reader3["U_EMAIL"].ToString(),
+                              reader3["U_ADDRESS"].ToString(),
+                              reader3["U_CONTECT_NAME"].ToString(),
+                              reader3["U_CONTACT_PHONE"].ToString()
+                          );
+                    myClient = newClient;
+                }
+
+                //getTest
+                List<string> listLabTtex = new List<string>();
+
+                sql = string.Format("select FTU.u_lab_ttex FROM lims_sys.U_FCS_TEST FT INNER JOIN lims_sys.U_FCS_TEST_USER FTU ON FTU.U_FCS_TEST_ID=FT.U_FCS_TEST_ID WHERE FT.NAME = '{0}'", obj.TestSubCode);
+                cmd = new OracleCommand(sql, oraCon);
+                OracleDataReader reader = cmd.ExecuteReader();
+
+                if (!reader.HasRows)
+                {
+                    _errorMsg = _errorMsgs[1];
+                    return false;
+                }
+                else
+                {
+                    string[] arrLabTtex;
+
+                    while (reader.Read())
+                    {
+                        string labTtex = reader["u_lab_ttex"].ToString();
+                        if (labTtex != null && labTtex != "")
                         {
-                            arrLabTtex = labTtex.Split(',');
-                            foreach (string item in arrLabTtex)
+
+                            if (labTtex.Contains(","))
                             {
-                                listLabTtex.Add(item);
+                                arrLabTtex = labTtex.Split(',');
+                                foreach (string item in arrLabTtex)
+                                {
+                                    listLabTtex.Add(item);
+                                }
+                            }
+                            else
+                            {
+                                listLabTtex.Add(labTtex);
                             }
                         }
+
                         else
                         {
-                            listLabTtex.Add(labTtex);
+                            _errorMsg = _errorMsgs[2];
+                            return false;
                         }
                     }
 
-                    else
+                }
+
+
+                sql = string.Format("SELECT W.NAME ALIQWFNAME,TTEX.DESCRIPTION,TTEX.NAME TTEXNAME " +
+               "FROM lims_sys.U_TEST_TEMPLATE_EX_USER TTEXU " +
+               "INNER JOIN lims_sys.U_TEST_TEMPLATE_EX TTEX ON TTEX.U_TEST_TEMPLATE_EX_ID= TTEXU.U_TEST_TEMPLATE_EX_ID " +
+               "INNER JOIN lims_sys.WORKFLOW  W ON TTEXU.U_ALIQ_WORKFLOW=W.WORKFLOW_ID " +
+               "where TTEXU.U_TEST_TEMPLATE_EX_ID in ("
+           + string.Join(",", listLabTtex)
+           + ")");
+
+                cmd = new OracleCommand(sql, oraCon);
+                OracleDataReader reader5 = cmd.ExecuteReader();
+
+                if (!reader5.HasRows)
+                {
+                    _errorMsg = _errorMsgs[2];
+                    return false;
+                }
+                else
+                {
+                    while (reader5.Read())
                     {
-                        _errorMsg = "מזהה בדיקה לא קיים, אנא פנה למנהל מערכת";
-                        return false;
+
+                        var a = reader5["ALIQWFNAME"].ToString();
+                        var b = reader5["DESCRIPTION"].ToString();
+                        var c = reader5["TTEXNAME"].ToString();
+
+
+                        AliquotObj newAliquot = new AliquotObj(a, b, c);
+
+                        _aliquotList.Add(newAliquot);
                     }
                 }
 
+                return true;
+
             }
-
-
-            sql = string.Format("SELECT W.NAME ALIQWFNAME,TTEX.DESCRIPTION,TTEX.NAME TTEXNAME " +
-           "FROM lims_sys.U_TEST_TEMPLATE_EX_USER TTEXU " +
-           "INNER JOIN lims_sys.U_TEST_TEMPLATE_EX TTEX ON TTEX.U_TEST_TEMPLATE_EX_ID= TTEXU.U_TEST_TEMPLATE_EX_ID " +
-           "INNER JOIN lims_sys.WORKFLOW  W ON TTEXU.U_ALIQ_WORKFLOW=W.WORKFLOW_ID " +
-           "where TTEXU.U_TEST_TEMPLATE_EX_ID in ("
-       + string.Join(",", listLabTtex)
-       + ")");
-
-            cmd = new OracleCommand(sql, oraCon);
-            OracleDataReader reader5 = cmd.ExecuteReader();
-
-            if (!reader5.HasRows)
+            catch (Exception ex)
             {
-                _errorMsg = "מזהה בדיקה לא קיים, אנא פנה למנהל מערכת";
+
+                Write($"Validation failed: {ex.Message}");
                 return false;
             }
-            else
-            {
-                while (reader5.Read())
-                {
-
-                    var a = reader5["ALIQWFNAME"].ToString();
-                    var b = reader5["DESCRIPTION"].ToString();
-                    var c = reader5["TTEXNAME"].ToString();
-
-
-                    AliquotObj newAliquot = new AliquotObj(a, b, c);
-
-                    _aliquotList.Add(newAliquot);
-                }
-            }
-
-            return true;
 
         }
-
 
         //converting xml to LabSampleFormResult object
         public LabSampleFormResult ExtractLabSampleForm(XDocument xmlDoc)
@@ -644,13 +624,14 @@ namespace HealthMinistry.Controllers
             }
             catch (Exception e)
             {
+                Write($"From ExtractLabSampleForm: {e.Message}");
                 return null;
             }
 
 
         }
 
-        //creating a xml document for creating sdg
+        //creating xml document for sending to order_v2 (xml in sdg format)
         private DOMDocument Create_XML(LabSampleFormResult obj, string barcode)
         {
             try
@@ -788,11 +769,14 @@ namespace HealthMinistry.Controllers
                     U_TEST_TEMPLATE_EXTENDED.text = aliq.U_TEST_TEMPLATE_EXTENDED;
 
                 }
-                objDom.save(@"C:\Users\avigaile\Desktop\new 7.xml");
+                //debug mode
+                //objDom.save(@"C:\Users\avigaile\Desktop\new 7.xml");
+                Write($"From Create_XML: xml obj created successfully");
                 return objDom;
             }
-            catch (Exception EXP)
+            catch (Exception ex)
             {
+                Write($"From Create_XML: {ex.Message}");
                 return null;
             }
         }
@@ -904,13 +888,14 @@ namespace HealthMinistry.Controllers
 
                     xdoc.Save(XmlFileName);
 
+                    Write($"From ParseToXML_res_1: xdoc created successfully");
                     return xdoc;
                 }
 
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                Write($"From ExtractLabSampleForm (result): {e.Message}");
             }
 
             return null;
@@ -934,9 +919,9 @@ namespace HealthMinistry.Controllers
 
                 return elementParent;
             }
-            catch (Exception EXP)
+            catch (Exception e)
             {
-                Write(EXP.Message);
+                Write($"From GetAllChildsReport_Date: {e.Message}");
                 return null;
             }
         }
@@ -970,10 +955,9 @@ namespace HealthMinistry.Controllers
                 }
                 return elementParent;
             }
-            catch (Exception EXP)
+            catch (Exception e)
             {
-                Write(EXP.Message);
-
+                Write($"From GetAllChilds: {e.Message}");
                 return null;
             }
         }
@@ -1021,9 +1005,9 @@ namespace HealthMinistry.Controllers
 
                 return element;
             }
-            catch (Exception EXP)
+            catch (Exception e)
             {
-                Write(EXP.Message);
+                Write($"From AddXmlNode2: {e.Message}");
                 return null;
             }
         }
@@ -1047,9 +1031,9 @@ namespace HealthMinistry.Controllers
                 }
                 return elementParent;
             }
-            catch (Exception EXP)
+            catch (Exception e)
             {
-                Write(EXP.Message);
+                Write($"From GetAllChildsLabNotes: {e.Message}");
                 return null;
             }
         }
@@ -1061,14 +1045,12 @@ namespace HealthMinistry.Controllers
 
         #region api requests
 
-        //sample request & result request 2
+        //sending api request (sample, 2nd result)
         public string SendRequestWithXML(string xmlString, string url, string soapAction, string pfxPath)
         {
             try
             {
 
-                //soapAction = "http://www.moh.gov.co.il/FoodApp/FCS_Labs/IFCS_Labs/Lab_Results_Form";
-                // Disable SSL certificate validation
                 ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
                 X509Certificate2Collection collection;
                 collection = new X509Certificate2Collection();
@@ -1086,7 +1068,6 @@ namespace HealthMinistry.Controllers
 
 
                 byte[] xmlBytes = Encoding.UTF8.GetBytes(xmlString);
-
 
 
                 using (Stream requestStream = request.GetRequestStream())
@@ -1108,12 +1089,12 @@ namespace HealthMinistry.Controllers
             }
             catch (Exception ex)
             {
-                Write("An error occurred: " + ex.Message);
-                return "false";
+                Write($"From SendRequestWithXML: {ex.Message}");
+                return msgList[5];
             }
         }
 
-        //result request 1
+        //sending api request (1st result)
         public string SendRequestWithPDF(string coaReportPdfPath)
         {
 
@@ -1139,9 +1120,10 @@ namespace HealthMinistry.Controllers
                 var response = client.Execute(request);
                 return response.Content;
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                return "false";
+                Write($"From SendRequestWithPDF: {ex.Message}");
+                return msgList[5];
             }
         }
         #endregion
@@ -1155,54 +1137,56 @@ namespace HealthMinistry.Controllers
             ExeConfigurationFileMap map = new ExeConfigurationFileMap();
             map.ExeConfigFilename = assemblyPath + ".config";
             Configuration cfg = ConfigurationManager.OpenMappedExeConfiguration(map, ConfigurationUserLevel.None);
-            var appSettings = cfg.AppSettings;
-
         }
-
-
-        //validating xml format
-        public bool IsXmlFormat(string input)
-        {
-            string pattern = @"<[^<>]+>";
-            return Regex.IsMatch(input, pattern);
-        }
-
 
         private DateTime? GetDate(XElement dateElements, XNamespace ns)
         {
-            int year, month, day;
-
-            XElement yearElement = dateElements.Elements(ns + "Year").FirstOrDefault();
-            XElement monthElement = dateElements.Elements(ns + "Month").FirstOrDefault();
-            XElement dayElement = dateElements.Elements(ns + "Day").FirstOrDefault();
-
-            string yearValue = (yearElement != null) ? yearElement.Value : null;
-            string monthValue = (monthElement != null) ? monthElement.Value : null;
-            string dayValue = (dayElement != null) ? dayElement.Value : null;
-
-            if (!string.IsNullOrWhiteSpace(yearValue) && int.TryParse(yearValue, out year) &&
-                !string.IsNullOrWhiteSpace(monthValue) && int.TryParse(monthValue, out month) &&
-                !string.IsNullOrWhiteSpace(dayValue) && int.TryParse(dayValue, out day))
+            try
             {
-                if (year == 0 || month == 0 || day == 0)
-                {
-                    return null;
-                }
-                return new DateTime(year, month, day);
-            }
+                int year, month, day;
 
-            return null;
+                XElement yearElement = dateElements.Elements(ns + "Year").FirstOrDefault();
+                XElement monthElement = dateElements.Elements(ns + "Month").FirstOrDefault();
+                XElement dayElement = dateElements.Elements(ns + "Day").FirstOrDefault();
+
+                string yearValue = (yearElement != null) ? yearElement.Value : null;
+                string monthValue = (monthElement != null) ? monthElement.Value : null;
+                string dayValue = (dayElement != null) ? dayElement.Value : null;
+
+                if (!string.IsNullOrWhiteSpace(yearValue) && int.TryParse(yearValue, out year) &&
+                    !string.IsNullOrWhiteSpace(monthValue) && int.TryParse(monthValue, out month) &&
+                    !string.IsNullOrWhiteSpace(dayValue) && int.TryParse(dayValue, out day))
+                {
+                    if (year == 0 || month == 0 || day == 0)
+                    {
+                        return null;
+                    }
+                    return new DateTime(year, month, day);
+                }
+
+            }
+            catch(Exception ex) {
+
+                Write($"From GetDate: {ex.Message}");
+                return null;
+            }   
+
+                return null;
+
         }
 
 
         private void Write(string s)
         {
-            Console.WriteLine(s);
-            //Logger.WriteLogFile(s);
+            try
+            {
+                Logger.WriteLogFile(s);
+            }
+            catch { }
         }
 
         #endregion
-       
+
 
         #endregion
     }
