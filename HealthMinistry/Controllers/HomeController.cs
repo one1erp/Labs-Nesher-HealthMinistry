@@ -1,5 +1,4 @@
-﻿using Common;
-using DAL;
+﻿using DAL;
 using MSXML;
 using Oracle.DataAccess.Client;
 using RestSharp;
@@ -12,7 +11,6 @@ using System.Net;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Web.Mvc;
 using System.Xml;
 using System.Xml.Linq;
@@ -61,7 +59,12 @@ namespace HealthMinistry.Controllers
                     "failed",
                     "נכשלה יצירת XML ראשוני לשליחה"
                 };
-        OracleConnection oraCon = new OracleConnection(System.Configuration.ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
+        OracleConnection oraCon;
+        private static string path;
+        private static string flag;
+        private static bool loggingEnable = true;
+        private static bool firstLine = true;
+        private static string logPath;
 
         #endregion
 
@@ -74,6 +77,7 @@ namespace HealthMinistry.Controllers
         {
             try
             {
+                oraCon = new OracleConnection(System.Configuration.ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
                 Write("Start FcsSampleRequest");
 
                 openSqlConnection();
@@ -83,7 +87,7 @@ namespace HealthMinistry.Controllers
                 //building xml with barcode for 1st request
                 string xmlStringBarcode = BuildInitialXML(barcode);
 
-                //adding fcs_msg - removed, stayed in git's 1st version
+                //adding fcs_msg - removed, exists in git's 1st version
                 //-----------------------------------------------------
 
                 //sending 1st request to HM
@@ -100,13 +104,15 @@ namespace HealthMinistry.Controllers
                 if (labSampleForm == null)
                 {
                     Write($"From FcsSampleRequest: failed");
+                    oraCon.Close();
                     return msgList[3];
                 }
 
                 //labSampleForm contains information about itself
                 if (labSampleForm.ReturnCode != "0" && labSampleForm.ReturnCode != "1")
                 {
-                    Write($"The process was completed unsuccessfully, {labSampleForm.ReturnCodeDesc} )");
+                    Write($"The process was completed unsuccessfully, {labSampleForm.ReturnCodeDesc}");
+                    oraCon.Close();
                     return labSampleForm.ReturnCodeDesc;
                 }
 
@@ -123,6 +129,7 @@ namespace HealthMinistry.Controllers
                 if (docXml != null)
                 {
                     Write($"The process was completed successfully, xml string for creating sdg was sent to order_v2");
+                    oraCon.Close();
                     return docXml.xml;
                 }
 
@@ -130,13 +137,15 @@ namespace HealthMinistry.Controllers
                 //return labSampleForm.ToString();
 
                 Write($"labSampleForm created, but docXml is null");
+                oraCon.Close();
                 return null;
 
             }
             catch (Exception ex)
             {
                 Write($"From FcsSampleRequest: {ex.Message}");
-                return msgList[3];
+                oraCon.Close();
+                return msgList[3] + $" From FcsSampleRequest: {ex.Message}";
             }
 
         }
@@ -150,6 +159,11 @@ namespace HealthMinistry.Controllers
             try
             {
                 Write("Start FcsResultRequest");
+                oraCon = new OracleConnection(System.Configuration.ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
+
+                openSqlConnection();
+
+                if (oraCon.State != System.Data.ConnectionState.Open) oraCon.Open();
 
                 _dal = new DataLayer();
                 _dal.Connect(_cs);
@@ -1054,8 +1068,17 @@ namespace HealthMinistry.Controllers
                 ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
                 X509Certificate2Collection collection;
                 collection = new X509Certificate2Collection();
-                collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
+                try
+                {
+                    //password is not correct - real
+                    collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
 
+                }
+                catch (Exception ex)
+                {
+                    Write($"After collection.import: {ex.Message}");
+                    return msgList[5];
+                }
 
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
                 request.ClientCertificates = new X509CertificateCollection();
@@ -1165,25 +1188,42 @@ namespace HealthMinistry.Controllers
                 }
 
             }
-            catch(Exception ex) {
+            catch (Exception ex) {
 
                 Write($"From GetDate: {ex.Message}");
                 return null;
-            }   
-
-                return null;
-
-        }
-
-
-        private void Write(string s)
-        {
-            try
-            {
-                Logger.WriteLogFile(s);
             }
-            catch { }
+
+            return null;
+
         }
+
+
+        private static void Write(string strLog)
+        {
+
+            path = ConfigurationManager.AppSettings["LogPath"];
+            flag = ConfigurationManager.AppSettings["LogFlag"];
+
+            if (flag == null || flag != "T")
+            {
+                loggingEnable = false;
+                return;
+            }
+
+            if (string.IsNullOrEmpty(path)) path = "C:\\temp\\";
+            if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+
+            logPath = $"{path}HM.txt";
+
+            using (StreamWriter sw = System.IO.File.AppendText(logPath))
+            {
+                if (firstLine) { sw.WriteLine($"\n{DateTime.Now}"); firstLine = false; }
+                sw.WriteLine(strLog);
+            }
+        }
+
+   
 
         #endregion
 
