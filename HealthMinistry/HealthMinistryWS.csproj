@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -173,9 +173,18 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
+    <Compile Include="NautObjects\AliquotObj.cs" />
+    <Compile Include="NautObjects\Constants.cs" />
+    <Compile Include="NautObjects\ClientObj.cs" />
+    <Compile Include="Logic\FcsToNautilus.cs" />
+    <Compile Include="FCSObjects\ImporterDetails.cs" />
+    <Compile Include="FCSObjects\RequestedTest.cs" />
+    <Compile Include="FCSObjects\AmilDetails.cs" />
     <Compile Include="Controllers\HomeController.cs" />
-    <Compile Include="Controllers\LabSampleFormResult.cs" />
-    <Compile Include="Controllers\resClasses.cs" />
+    <Compile Include="FCSObjects\LabSampleFormResult.cs" />
+    <Compile Include="FCSObjects\resClasses.cs" />
+    <Compile Include="NautObjects\SampleObj.cs" />
+    <Compile Include="NautObjects\SdgNaut.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
@@ -197,9 +206,14 @@
     <Content Include="Views\Web.config" />
     <Content Include="Views\Home\Index.cshtml" />
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
     <Content Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TestHealthMinistry%28FCS only%29\TestHealthMinistry%28FCS only%29.csproj">
+      <Project>{afa4e374-27c8-4a7f-ab09-b38bf0da646a}</Project>
+      <Name>TestHealthMinistry%28FCS only%29</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

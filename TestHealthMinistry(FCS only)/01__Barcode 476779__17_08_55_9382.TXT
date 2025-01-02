@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sample_Form_Request xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Barcode>476779</Barcode>
+  <Lab_Code>13</Lab_Code>
+</Sample_Form_Request>
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sample_Form_Response xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Return_Code>0</Return_Code>
+  <Barcode>476779</Barcode>
+  <Form_Type>1</Form_Type>
+  <Sample_Form_Num>9038</Sample_Form_Num>
+  <Is_Vet>false</Is_Vet>
+  <Product_Group_Description>מוצרי מאפה מיוחדים אחרים כגון עוגות, פאי, סופגניות, פנקייק, </Product_Group_Description>
+  <Product_Group_Code>121</Product_Group_Code>
+  <Product_name_heb>פיצה קפואה</Product_name_heb>
+  <Product_name_eng />
+  <Product_Brand_Name>PIZZA MARGHERITA THICK DEEP FROZEN</Product_Brand_Name>
+  <Organization>TH06</Organization>
+  <Importer_Details>
+    <Company_ID>511725459</Company_ID>
+    <Company_Name>נטו מלינדה סחר בע"מ.</Company_Name>
+    <Address>רח' מאיר עזרא 5, קרית מלאכי 8310601</Address>
+    <City>קרית מלאכי</City>
+    <ZIP_Code>8310601</ZIP_Code>
+    <Phone1>08-8608585</Phone1>
+    <Phone2 />
+    <Fax>08-8504548</Fax>
+    <Email>moh-import@em-neto.co.il</Email>
+  </Importer_Details>
+  <Amil_Details>
+    <Company_ID>513079731</Company_ID>
+    <Company_Name>רויאל קרגו עמילות מכס (2001) בע"מ</Company_Name>
+    <Address />
+    <City>   </City>
+    <ZIP_Code />
+    <Phone1>03-5162388</Phone1>
+    <Phone2 />
+    <Fax>48650382</Fax>
+    <Email>or@wlog-group.com</Email>
+  </Amil_Details>
+  <Payer_ID>1</Payer_ID>
+  <Producer_Name>SVILA</Producer_Name>
+  <Producer_Country>11</Producer_Country>
+  <Manufacture_Date>
+    <Year>0</Year>
+    <Month>0</Month>
+    <Day>0</Day>
+  </Manufacture_Date>
+  <Sampling_Time />
+  <Sampling_Temp>999</Sampling_Temp>
+  <Expiry_Date>
+    <Year>2023</Year>
+    <Month>10</Month>
+    <Day>11</Day>
+  </Expiry_Date>
+  <Batch_Num />
+  <Property_Plus />
+  <Sampling_Place>בנמל - במחסן ערובה</Sampling_Place>
+  <Sampling_Reason>פיקוח שגרתי</Sampling_Reason>
+  <Packing_Type>אחרת</Packing_Type>
+  <Delivery_To_Lab>מסירה ישירה</Delivery_To_Lab>
+  <Sampling_Inspector />
+  <Inspector_Title>מפקח/ת מזון</Inspector_Title>
+  <Container_Num>9087067</Container_Num>
+  <Num_Of_Samples>1</Num_Of_Samples>
+  <Num_Of_Samples_Vet>0</Num_Of_Samples_Vet>
+  <Del_File_Num>2022044733</Del_File_Num>
+  <Sampling_Date>
+    <Year>0</Year>
+    <Month>0</Month>
+    <Day>0</Day>
+  </Sampling_Date>
+  <Importer_Store>נטו מלינדה סחר בע"מ- החרושת ק. מלאכי</Importer_Store>
+  <Test_Sub_Code>52</Test_Sub_Code>
+  <Test_Description>מיקרו' כולל ח. פתוגנים</Test_Description>
+</Sample_Form_Response>

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web;
 
-namespace HealthMinistry.Controllers
+namespace HealthMinistry.FCSObjects
 {
 
     class Request
@@ -56,6 +56,7 @@ namespace HealthMinistry.Controllers
             Test_Results = sampleFormNum;
         }
     }
+
     public class ATTACHED_DOCUMENT
     {
         public string Document_Name { get; set; }

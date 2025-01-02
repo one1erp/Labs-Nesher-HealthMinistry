@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sample_Form_Request xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Barcode>476816</Barcode>
+  <Lab_Code>13</Lab_Code>
+</Sample_Form_Request>
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sample_Form_Response xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Return_Code>0</Return_Code>
+  <Barcode>476816</Barcode>
+  <Form_Type>1</Form_Type>
+  <Sample_Form_Num>9057</Sample_Form_Num>
+  <Is_Vet>true</Is_Vet>
+  <Product_Group_Description>רכיכות, סרטנים ואכינודרמים מבושלים</Product_Group_Description>
+  <Product_Group_Code>152</Product_Group_Code>
+  <Product_name_heb>סרטן נהרות מבושל קפוא</Product_name_heb>
+  <Product_name_eng>Astacus leptodactylus, Procambarus clarki, Astacus astacus</Product_name_eng>
+  <Product_Brand_Name />
+  <Organization>TH06</Organization>
+  <Importer_Details>
+    <Company_ID>511573354</Company_ID>
+    <Company_Name>קנקון מוצרים בע"מ</Company_Name>
+    <Address>רח' שד המקצועות 18, מודיעין 7177700</Address>
+    <City>מודיעין</City>
+    <ZIP_Code>7177700</ZIP_Code>
+    <Phone1>03-9518074</Phone1>
+    <Phone2 />
+    <Fax>089-5180973</Fax>
+    <Email>cancun@bezeqint.net</Email>
+  </Importer_Details>
+  <Amil_Details>
+    <Company_ID>510694920</Company_ID>
+    <Company_Name>אייביטרנס לוגיסטיקה</Company_Name>
+    <Address />
+    <City>   </City>
+    <ZIP_Code />
+    <Phone1>88563154</Phone1>
+    <Phone2 />
+    <Fax>88568610</Fax>
+    <Email>ash2@abetrans.net</Email>
+  </Amil_Details>
+  <Payer_ID>1</Payer_ID>
+  <Producer_Name>3300/02112 Taizhou Tianhe</Producer_Name>
+  <Producer_Country>120</Producer_Country>
+  <Manufacture_Date>
+    <Year>0</Year>
+    <Month>0</Month>
+    <Day>0</Day>
+  </Manufacture_Date>
+  <Sampling_Time />
+  <Sampling_Temp>999</Sampling_Temp>
+  <Expiry_Date>
+    <Year>0</Year>
+    <Month>0</Month>
+    <Day>0</Day>
+  </Expiry_Date>
+  <Batch_Num />
+  <Property_Plus />
+  <Sampling_Place />
+  <Sampling_Reason />
+  <Packing_Type />
+  <Delivery_To_Lab />
+  <Sampling_Inspector>רחל אגם-אסנת</Sampling_Inspector>
+  <Inspector_Title>רופא וטרינר/ית</Inspector_Title>
+  <Container_Num>9934190</Container_Num>
+  <Num_Of_Samples />
+  <Num_Of_Samples_Vet>5</Num_Of_Samples_Vet>
+  <Del_File_Num>2022049449</Del_File_Num>
+  <Sampling_Date>
+    <Year>2022</Year>
+    <Month>7</Month>
+    <Day>14</Day>
+  </Sampling_Date>
+  <Importer_Store>קירור לי בע"מ</Importer_Store>
+  <Test_Sub_Code>90</Test_Sub_Code>
+  <Test_Description>מיקרו מלא, ליסטריה בודדת</Test_Description>
+</Sample_Form_Response>

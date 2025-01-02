@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sample_Form_Request xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Barcode>478760</Barcode>
+  <Lab_Code>13</Lab_Code>
+</Sample_Form_Request>
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sample_Form_Response xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Return_Code>0</Return_Code>
+  <Barcode>478760</Barcode>
+  <Form_Type>1</Form_Type>
+  <Sample_Form_Num>647</Sample_Form_Num>
+  <Is_Vet>false</Is_Vet>
+  <Product_Group_Description>קרחונים בטעמים</Product_Group_Description>
+  <Product_Group_Code>400</Product_Group_Code>
+  <Product_name_heb>קרחון בטעם תות שדה</Product_name_heb>
+  <Product_name_eng />
+  <Product_Brand_Name>ICE TOP STRAWBERRY</Product_Brand_Name>
+  <Organization>TH08</Organization>
+  <Importer_Details>
+    <Company_ID>516255171</Company_ID>
+    <Company_Name>ח.ח שיווק גלידות וממתקים בע"מ</Company_Name>
+    <Address>רח' העבודה 9, נצרת עילית 12345</Address>
+    <City>נצרת עילית</City>
+    <ZIP_Code>12345</ZIP_Code>
+    <Phone1>050-6664686</Phone1>
+    <Phone2 />
+    <Fax />
+    <Email>mtanesk@gmail.com</Email>
+  </Importer_Details>
+  <Amil_Details>
+    <Company_ID>513046615</Company_ID>
+    <Company_Name>פליינג קרגו תובלה בינלאומית בע"מ</Company_Name>
+    <Address />
+    <City>   </City>
+    <ZIP_Code />
+    <Phone1>03-9719000</Phone1>
+    <Phone2 />
+    <Fax>0545555555</Fax>
+    <Email>Mazal.Michaeli@dhl.com</Email>
+  </Amil_Details>
+  <Payer_ID>1</Payer_ID>
+  <Producer_Name>THE SAUDI JORDANIAN INDUSTRIAL DEVELOPMENT CO "JORDINA"</Producer_Name>
+  <Producer_Country>4</Producer_Country>
+  <Manufacture_Date>
+    <Year>2022</Year>
+    <Month>6</Month>
+    <Day>5</Day>
+  </Manufacture_Date>
+  <Sampling_Time />
+  <Sampling_Temp>999</Sampling_Temp>
+  <Expiry_Date>
+    <Year>2023</Year>
+    <Month>6</Month>
+    <Day>4</Day>
+  </Expiry_Date>
+  <Batch_Num />
+  <Property_Plus />
+  <Sampling_Place>בנמל</Sampling_Place>
+  <Sampling_Reason>פיקוח שגרתי</Sampling_Reason>
+  <Packing_Type>פלסטיק</Packing_Type>
+  <Delivery_To_Lab>ע"י יבואן</Delivery_To_Lab>
+  <Sampling_Inspector>ולאא בריה</Sampling_Inspector>
+  <Inspector_Title>מפקח/ת מזון ויצור מקומי-רמת משתמש</Inspector_Title>
+  <Container_Num>5555555</Container_Num>
+  <Num_Of_Samples>6</Num_Of_Samples>
+  <Num_Of_Samples_Vet>0</Num_Of_Samples_Vet>
+  <Del_File_Num>2022041035</Del_File_Num>
+  <Sampling_Date>
+    <Year>2022</Year>
+    <Month>7</Month>
+    <Day>26</Day>
+  </Sampling_Date>
+  <Importer_Store>טופ קור לוגיסטיקה בע"מ</Importer_Store>
+  <Test_Sub_Code>71</Test_Sub_Code>
+  <Test_Description>קוליפורמים</Test_Description>
+</Sample_Form_Response>

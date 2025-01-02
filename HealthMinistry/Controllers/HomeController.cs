@@ -1,23 +1,33 @@
-﻿using Common;
+﻿//using Common;
 using DAL;
+using HealthMinistry.FCSObjects;
+using HealthMinistry.Logic;
+using HealthMinistry.NautObjects;
+using Microsoft.SqlServer.Server;
 using MSXML;
 using Oracle.DataAccess.Client;
 using RestSharp;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Security;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Policy;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Web.Mvc;
+using System.Web.UI.WebControls;
 using System.Xml;
+
 using System.Xml.Linq;
-
-
+using static System.Net.Mime.MediaTypeNames;
 
 namespace HealthMinistry.Controllers
 {
@@ -26,47 +36,74 @@ namespace HealthMinistry.Controllers
 
         public ActionResult Index()
         {
+
+
+            #region Testing
+
+            string f = "";
+            if (1 == 2)
+            { f = "Sample Response 2024201756651.xml"; }
+            else { f = "Sample with sampling val.xml"; }
+
+            InitParam();
+
+            var d = XDocument.Load(@"C:/TEMP/" + f);
+
+            LabSampleFormResult labSample = ExtractLabSampleForm(d);
+            d.Save(Path.Combine(LOG, "Sample Response " + labSample.Barcode + "YYY.xml"));
+            var x = labSample.TestDescription;
+            var y = labSample.requestedTestsList.Count;
+
+            FcsToNautilus fcsToNautilus = new FcsToNautilus(labSample);
+
+            string succsses = fcsToNautilus.Convert();
+            //validiating labSampleForm object
+
+            if (string.IsNullOrEmpty(succsses))
+            {
+                CreateNautilusXML(fcsToNautilus.sdgNaut);
+            }
+#endregion
+
             return View();
+
+        }
+
+        private void InitParam()
+        {
+
+            _urlApiService = ConfigurationManager.AppSettings["API_HM_INTERFACE_ADDRESS"];
+            _soapActionSample = ConfigurationManager.AppSettings["SOAP_ACTION_SAMPLE"];
+            _soapActionResult = ConfigurationManager.AppSettings["SOAP_ACTION_RESULT"];
+            LOG = ConfigurationManager.AppSettings["LOG"];
+            _pfxPath = ConfigurationManager.AppSettings["PFX_DIRECTION_PATH"];
+            _hmApiFiles = ConfigurationManager.AppSettings["API_HM_INTERFACE_ADDRESS_FILES"];
+            _xmlTemplateDirection = ConfigurationManager.AppSettings["xmlTemplateDirection"];
+            _cs = ConfigurationManager.ConnectionStrings["connectionStringEF"].ConnectionString;
         }
 
 
         #region variables
 
         public IDataLayer _dal = null;
-        List<AliquotObj> _aliquotList = new List<AliquotObj>();
-        private OracleCommand cmd;
-        private ClientObj myClient;
+        private OracleCommand _cmd;
+
         private string sql;
         private string _errorMsg = "";
-        string _urlApiService = ConfigurationManager.AppSettings["API_HM_INTERFACE_ADDRESS"];
-        string _soapActionSample = ConfigurationManager.AppSettings["SOAP_ACTION_SAMPLE"];
-        string _soapActionResult = ConfigurationManager.AppSettings["SOAP_ACTION_RESULT"];
+        private string _soapActionSample, _cs, _urlApiService, _soapActionResult, LOG, _pfxPath, _hmApiFiles, _xmlTemplateDirection;
 
+        #region Constants
 
+        private string[] classes = new string[]
+        { "Attached_Document", "ATTACHED_DOCUMENT", "Report_Notes", "Test_Results", "Test_Result", "Report_Notes", "Lab_Notes", "Report_Date" };
 
-        string _pfxPath = ConfigurationManager.AppSettings["PFX_DIRECTION_PATH"];
-        string _hmApiFiles = ConfigurationManager.AppSettings["API_HM_INTERFACE_ADDRESS_FILES"];
-        string _xmlTemplateDirection = ConfigurationManager.AppSettings["xmlTemplateDirection"];
-        string _cs = ConfigurationManager.ConnectionStrings["connectionStringEF"].ConnectionString;
-
-        protected string[] classes = new string[] { "Attached_Document", "ATTACHED_DOCUMENT", "Report_Notes", "Test_Results", "Test_Result", "Report_Notes", "Lab_Notes", "Report_Date" };
-
-        private readonly List<string> msgList = new List<string>()
-                {
-                    "לא נמצאה תעודה עם המזהה שנשלח",
-                    "התעודה לא מאושרת,לא ניתן לשלוח למשרד הבריאות",
-                    "לתעודה של דרישה זו pdf לא נמצא מסמך ",
-                    "שגיאה בשליחת הבקשה למשרד הבריאות",
-                    "התהליך עבר בהצלחה",
-                    "failed",
-                    "נכשלה יצירת XML ראשוני לשליחה"
-                };
-        OracleConnection oraCon = new OracleConnection(System.Configuration.ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
+        #endregion
+        OracleConnection oraCon = new OracleConnection(ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
 
         #endregion
 
 
-        #region base functions
+        #region Api functions
 
 
         [HttpPost]
@@ -74,33 +111,35 @@ namespace HealthMinistry.Controllers
         {
             try
             {
-                Write("Start FcsSampleRequest");
 
+                InitParam();
+                Write("Start FcsSampleRequest");
                 openSqlConnection();
 
                 if (oraCon.State != System.Data.ConnectionState.Open) oraCon.Open();
 
                 //building xml with barcode for 1st request
-                string xmlStringBarcode = BuildInitialXML(barcode);
+                string xmlStringBarcode = BuildSampleRquest(barcode);
 
                 //adding fcs_msg - removed, stayed in git's 1st version
                 //-----------------------------------------------------
 
                 //sending 1st request to HM
-                var sampleRequest_result = SendRequestWithXML(xmlStringBarcode, _urlApiService, _soapActionSample, _pfxPath);
+                var response = SendRequest2FCS(xmlStringBarcode, _urlApiService, _soapActionSample, _pfxPath);
 
                 //In case of error while sending - return.
-                if (sampleRequest_result.Equals(msgList[5])) return msgList[3];
+                if (response.Equals(Constants.msgList[5])) return Constants.msgList[3];
 
                 //parsing the response to xml
-                XDocument xmlDoc = XDocument.Parse(sampleRequest_result);
+                XDocument xmlDocResponse = XDocument.Parse(response);
+                xmlDocResponse.Save(Path.Combine(LOG, "Sample Response " + barcode + ".xml"));
 
                 //parsing the xml to labSampleForm - a HM object
-                LabSampleFormResult labSampleForm = ExtractLabSampleForm(xmlDoc);
+                LabSampleFormResult labSampleForm = ExtractLabSampleForm(xmlDocResponse);
                 if (labSampleForm == null)
                 {
                     Write($"From FcsSampleRequest: failed");
-                    return msgList[3];
+                    return Constants.msgList[3];
                 }
 
                 //labSampleForm contains information about itself
@@ -110,20 +149,28 @@ namespace HealthMinistry.Controllers
                     return labSampleForm.ReturnCodeDesc;
                 }
 
-                //validiating labSampleForm object
-                var isValid = Validation(labSampleForm);
+                Write($"Converting Fcs To Nautilus.");
 
-                if (!isValid)
-                    return _errorMsg;
+                FcsToNautilus fcsToNautilus = new FcsToNautilus(oraCon, labSampleForm);
+                string succsses = fcsToNautilus.Convert();
+                //validiating labSampleForm object
+
+                Write($"Converting "+ succsses);
+
+
+                if (!string.IsNullOrEmpty(succsses))
+                    return succsses;
+
+                Write($"Build Xml For Nautilus.");
 
                 //if labSampleForm is valid, parsing it to xml
-                var docXml = Create_XML(labSampleForm, barcode);
+                DOMDocument nautilusXml = CreateNautilusXML(fcsToNautilus.sdgNaut);
 
                 //The calling method from orderv2 proj gets the xml and proccesses it to a sdg
-                if (docXml != null)
+                if (nautilusXml != null)
                 {
                     Write($"The process was completed successfully, xml string for creating sdg was sent to order_v2");
-                    return docXml.xml;
+                    return nautilusXml.xml;
                 }
 
                 //debug mode - for postman
@@ -136,11 +183,10 @@ namespace HealthMinistry.Controllers
             catch (Exception ex)
             {
                 Write($"From FcsSampleRequest: {ex.Message}");
-                return msgList[3];
+                return Constants.msgList[3];
             }
 
         }
-
 
 
         [HttpPost]
@@ -149,24 +195,44 @@ namespace HealthMinistry.Controllers
 
             try
             {
+                bool dbg = true;// (Environment.MachineName == "ONE1PC2643");//true                    
+                InitParam();
                 Write("Start FcsResultRequest");
+                string pdfpath = string.Empty;
+                COA_Report coaReport = new COA_Report();
+
 
                 _dal = new DataLayer();
                 _dal.Connect(_cs);
 
-                COA_Report coaReport = _dal.GetCoaReportById(long.Parse(coaId));
+                coaReport = _dal.GetCoaReportById(long.Parse(coaId));
 
-                if (coaReport == null) return msgList[0];
+                if (coaReport == null) return Constants.msgList[0];
 
-                if (coaReport.Status != "A") return msgList[1];
+                if (coaReport.Status != "A")
+                { Write(Constants.msgList[1]); return Constants.msgList[1]; }
+                if (coaReport.PdfPath == null)
+                { Write(Constants.msgList[2]); return Constants.msgList[2]; }
+                pdfpath = coaReport.PdfPath;
 
-                if (coaReport.PdfPath == null) return msgList[2];
 
+
+                if (dbg)
+                    pdfpath = "C:\\TEMP\\TEST PDF.pdf";
+                else
+                {
+
+                }
                 //sending 2nd request (result) proccessing response and sending back to HM
-                var resultRequest1_response = SendRequestWithPDF(coaReport.PdfPath);
+                string resultRequest1_response = string.Empty;
+
+                resultRequest1_response = SendRequestWithPDF(pdfpath, _pfxPath);
 
                 //sending request failed
-                if (resultRequest1_response.Equals("failed")) return msgList[3];
+                if (resultRequest1_response.Equals("failed")) return Constants.msgList[3];
+
+
+                //return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa debug";
 
                 //3rd request to HM - proccessed response from 2nd request:
 
@@ -177,11 +243,16 @@ namespace HealthMinistry.Controllers
                 string xmlString = xmlFile.OuterXml;
 
                 //sending 3rd request to HM, with proccessed string
-                string responseFrom2ndResReq = SendRequestWithXML(xmlString, _urlApiService, _soapActionResult, _pfxPath);
+                string responseFrom2ndResReq = SendRequest2FCS(xmlString, _urlApiService, _soapActionResult, _pfxPath);
 
                 //loading 3rd response to xml (for easy serching information)
+
                 XmlDocument xmlDoc = new XmlDocument();
+                if (!IsXml(responseFrom2ndResReq)) return responseFrom2ndResReq;
+
                 xmlDoc.LoadXml(responseFrom2ndResReq);
+
+
 
                 XmlNamespaceManager nsManager = new XmlNamespaceManager(xmlDoc.NameTable);
                 nsManager.AddNamespace("a", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
@@ -198,7 +269,7 @@ namespace HealthMinistry.Controllers
                     if (returnCodeValue == "0" || returnCodeValue == "1")
                     {
                         Write($"The process was completed successfully, return code: {returnCodeValue}");
-                        return msgList[4];
+                        return Constants.msgList[4];
                     }
                     //something was wrong
                     else
@@ -229,12 +300,186 @@ namespace HealthMinistry.Controllers
         #endregion
 
 
+        #region FCS requests
+
+        /// <summary>
+        /// Function For sending To health Ministry
+        /// </summary>
+        /// <param name="xmlString">Body</param>
+        /// <param name="url"></param>
+        /// <param name="soapAction"></param>
+        /// <param name="pfxPath"></param>
+        /// <returns></returns>
+        string SendRequest2FCS(string xmlString, string url, string soapAction, string pfxPath)
+        {
+
+
+            bool dbg = false;
+
+            try
+            {
+
+                bool test = url.ToUpper().Contains("TEST");
+                ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
+                X509Certificate2Collection collection;
+                if (test)
+                {
+                    Write("test section");
+                    collection = new X509Certificate2Collection();
+                    collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
+                }
+                else
+                {
+                    Write("Prod section");
+                    string subjectName = "Institute For Food Microbiology";
+
+                    X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+                    store.Open(OpenFlags.ReadOnly);
+                    X509Certificate2Collection certificates = store.Certificates;
+                    X509Certificate2Collection foundCertificates = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
+                    collection = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
+
+                }
+
+
+                if (dbg) Write("BEFORE request");
+
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+                request.ClientCertificates = new X509CertificateCollection();
+                request.ClientCertificates.AddRange(collection);
+
+                if (dbg) Write(" SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tl");
+
+                //System.Net.ServicePointManager.SecurityProtocol = (SecurityProtocolType)(0xc0 | 0x300 | 0xc00); 
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+                request.Method = "POST";
+                request.ContentType = "text/xml;charset=utf-8";
+                request.Timeout = 600000;
+                request.Headers.Add("SOAPAction", soapAction);
+
+
+                byte[] xmlBytes = Encoding.UTF8.GetBytes(xmlString);
+
+
+
+                using (Stream requestStream = request.GetRequestStream())
+                {
+
+                    requestStream.Write(xmlBytes, 0, xmlBytes.Length);
+
+                    if (dbg) Write("BEFORE response");
+                    if (dbg) Write("BEFORE response 3333333333");
+
+                    // Basic logging properties
+
+                    if (dbg) LogReuest(request);
+
+                    using (WebResponse response = request.GetResponse())
+                    {
+                        if (dbg) Write("BEFORE responseStream");
+
+                        using (Stream responseStream = response.GetResponseStream())
+                        {
+                            if (dbg) Write("BEFORE reader");
+
+                            using (StreamReader reader = new StreamReader(responseStream))
+                            {
+                                if (dbg) Write("BEFORE ReadToEnd");
+
+                                string responseXml = reader.ReadToEnd();
+                                Write(responseXml);
+                                return responseXml;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (WebException ex)
+            {
+                Write($"From SendRequest2FCS: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Write(ex.InnerException.StackTrace);
+                    Write(ex.InnerException.Source);
+                    Write(ex.InnerException.ToString());
+                    Write(ex.InnerException.Message);
+                }
+
+                return Constants.msgList[5];
+            }
+        }
+
+
+
+        //sending api request (1st result)
+        string SendRequestWithPDF(string coaReportPdfPath, string pfxPath)
+        {
+
+            try
+            {
+                var uploadUrl = _hmApiFiles;
+                Write($"Start Upload PDF. \n COA Path is {coaReportPdfPath} \n Url is {uploadUrl}");
+                var client = new RestClient(uploadUrl);
+                var request = new RestRequest(Method.POST);
+
+                bool test = uploadUrl.ToUpper().Contains("TEST");
+                ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
+                X509Certificate2Collection collection;
+                if (test)
+                {
+                    Write("test section");
+                    collection = new X509Certificate2Collection();
+                    collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
+                }
+                else
+                {
+                    Write("Prod section");
+                    string subjectName = "Institute For Food Microbiology";
+
+                    X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+                    store.Open(OpenFlags.ReadOnly);
+                    X509Certificate2Collection certificates = store.Certificates;
+                    X509Certificate2Collection foundCertificates = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
+                    collection = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
+
+
+                }
+
+                // Disable SSL certificate validation
+
+
+
+                client.ClientCertificates = new X509CertificateCollection();
+                client.ClientCertificates.AddRange(collection);
+                //  ServicePointManager.SecurityProtocol = (SecurityProtocolType)(0xc0 | 0x300 | 0xc00);
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+
+
+                request.AlwaysMultipartFormData = true;
+                request.AddHeader("Content-Type", "multipart/form-data");
+                request.AddFile("", coaReportPdfPath);
+
+                var response = client.Execute(request);
+
+                Write($"Response Status code is : {response.StatusCode}");
+                Write($"Response Content = {response.Content} \n Ebd Upload PDF.");
+
+                return response.Content;
+            }
+            catch (Exception ex)
+            {
+                Write($"From SendRequestWithPDF: {ex.Message}");
+                return Constants.msgList[5];
+            }
+        }
+        #endregion
+
         #region other functions
 
         #region sample request
 
         //building initial xml(for sending to HM interface)
-        private string BuildInitialXML(string barcode_number)
+        private string BuildSampleRquest(string barcode_number)
         {
             try
             {
@@ -247,153 +492,27 @@ namespace HealthMinistry.Controllers
              <soapenv:Body>
                 <fcs:Lab_Sample_Form>
                    <fcs:Request>
-                      <fcs1:Barcode>{0}</fcs1:Barcode>
+                      <fcs1:Barcode>0</fcs1:Barcode>
                       <fcs1:Lab_Code>{1}</fcs1:Lab_Code>
+                      <fcs1:Main_Barcode>{0}</fcs1:Main_Barcode>
                    </fcs:Request>
                 </fcs:Lab_Sample_Form>
              </soapenv:Body>
           </soapenv:Envelope>", barcode, lab_code);
 
+                Write(xml);
                 return xml;
             }
             catch (Exception e)
             {
                 Write($"From BuildInitialXML: {e.Message}");
-                return msgList[6];
+                return Constants.msgList[6];
             }
         }
 
-        //validation tests 
-        private bool Validation(LabSampleFormResult obj)
-        {
-            try
-            {
-                var _errorMsgs = new List<string>()
-            {
-                "לקוח לא קיים, אנא פנה למנהל מערכת",
-                "לא נמצאה בדיקה, אנא פנה למנהל מערכת",
-                "מזהה בדיקה לא קיים, אנא פנה למנהל מערכת"
-            };
-
-                if (oraCon.State != System.Data.ConnectionState.Open)
-                {
-                    oraCon.Open();
-                }
 
 
-                //getClient
-                string labName = ConfigurationManager.AppSettings["LAB_NAME"];
-                sql = string.Format("SELECT C.NAME AS U_SDG_CLIENT,AD.PHONE AS U_PHONE,AD.EMAIL AS U_EMAIL,AD.ADDRESS_LINE_2 AS U_ADDRESS,AD.ADDRESS_LINE_1 AS U_CONTECT_NAME,AD.ADDRESS_LINE_4 AS U_CONTACT_PHONE FROM lims_sys.ADDRESS AD INNER JOIN lims_sys.CLIENT C ON AD.ADDRESS_ITEM_ID = C.CLIENT_ID WHERE C.CLIENT_CODE = '{0}' AND ADDRESS_TYPE = '{1}'", obj.PayerID, labName);
-                cmd = new OracleCommand(sql, oraCon);
-                OracleDataReader reader3 = cmd.ExecuteReader();
 
-                if (!reader3.HasRows)
-                {
-                    _errorMsg = _errorMsgs[0];
-                    return false;
-                }
-                else
-                {
-                    ClientObj newClient = new ClientObj(
-                              reader3["U_SDG_CLIENT"].ToString(),
-                              reader3["U_PHONE"].ToString(),
-                              reader3["U_EMAIL"].ToString(),
-                              reader3["U_ADDRESS"].ToString(),
-                              reader3["U_CONTECT_NAME"].ToString(),
-                              reader3["U_CONTACT_PHONE"].ToString()
-                          );
-                    myClient = newClient;
-                }
-
-                //getTest
-                List<string> listLabTtex = new List<string>();
-
-                sql = string.Format("select FTU.u_lab_ttex FROM lims_sys.U_FCS_TEST FT INNER JOIN lims_sys.U_FCS_TEST_USER FTU ON FTU.U_FCS_TEST_ID=FT.U_FCS_TEST_ID WHERE FT.NAME = '{0}'", obj.TestSubCode);
-                cmd = new OracleCommand(sql, oraCon);
-                OracleDataReader reader = cmd.ExecuteReader();
-
-                if (!reader.HasRows)
-                {
-                    _errorMsg = _errorMsgs[1];
-                    return false;
-                }
-                else
-                {
-                    string[] arrLabTtex;
-
-                    while (reader.Read())
-                    {
-                        string labTtex = reader["u_lab_ttex"].ToString();
-                        if (labTtex != null && labTtex != "")
-                        {
-
-                            if (labTtex.Contains(","))
-                            {
-                                arrLabTtex = labTtex.Split(',');
-                                foreach (string item in arrLabTtex)
-                                {
-                                    listLabTtex.Add(item);
-                                }
-                            }
-                            else
-                            {
-                                listLabTtex.Add(labTtex);
-                            }
-                        }
-
-                        else
-                        {
-                            _errorMsg = _errorMsgs[2];
-                            return false;
-                        }
-                    }
-
-                }
-
-
-                sql = string.Format("SELECT W.NAME ALIQWFNAME,TTEX.DESCRIPTION,TTEX.NAME TTEXNAME " +
-               "FROM lims_sys.U_TEST_TEMPLATE_EX_USER TTEXU " +
-               "INNER JOIN lims_sys.U_TEST_TEMPLATE_EX TTEX ON TTEX.U_TEST_TEMPLATE_EX_ID= TTEXU.U_TEST_TEMPLATE_EX_ID " +
-               "INNER JOIN lims_sys.WORKFLOW  W ON TTEXU.U_ALIQ_WORKFLOW=W.WORKFLOW_ID " +
-               "where TTEXU.U_TEST_TEMPLATE_EX_ID in ("
-           + string.Join(",", listLabTtex)
-           + ")");
-
-                cmd = new OracleCommand(sql, oraCon);
-                OracleDataReader reader5 = cmd.ExecuteReader();
-
-                if (!reader5.HasRows)
-                {
-                    _errorMsg = _errorMsgs[2];
-                    return false;
-                }
-                else
-                {
-                    while (reader5.Read())
-                    {
-
-                        var a = reader5["ALIQWFNAME"].ToString();
-                        var b = reader5["DESCRIPTION"].ToString();
-                        var c = reader5["TTEXNAME"].ToString();
-
-
-                        AliquotObj newAliquot = new AliquotObj(a, b, c);
-
-                        _aliquotList.Add(newAliquot);
-                    }
-                }
-
-                return true;
-
-            }
-            catch (Exception ex)
-            {
-
-                Write($"Validation failed: {ex.Message}");
-                return false;
-            }
-
-        }
 
         //converting xml to LabSampleFormResult object
         public LabSampleFormResult ExtractLabSampleForm(XDocument xmlDoc)
@@ -508,13 +627,14 @@ namespace HealthMinistry.Controllers
                 if (isVetElement.Attribute(xsiNs + "nil") != null)
                     result.IsVet = isVetElement.Attribute(xsiNs + "nil").Value;
 
-                var numOfSamplesElement = xmlDoc.Descendants(dataContractNs + "Num_Of_Samples").FirstOrDefault();
-                if (numOfSamplesElement != null)
-                    result.NumOfSamples = numOfSamplesElement.Value;
+                //Old Version
+                //var numOfSamplesElement = xmlDoc.Descendants(dataContractNs + "Num_Of_Samples").FirstOrDefault();
+                //if (numOfSamplesElement != null)
+                //    result.NumOfSamples = numOfSamplesElement.Value;
 
-                var numOfSamplesVetElement = xmlDoc.Descendants(dataContractNs + "Num_Of_Samples_Vet").FirstOrDefault();
-                if (numOfSamplesVetElement != null)
-                    result.NumOfSamplesVet = numOfSamplesVetElement.Value;
+                //var numOfSamplesVetElement = xmlDoc.Descendants(dataContractNs + "Num_Of_Samples_Vet").FirstOrDefault();
+                //if (numOfSamplesVetElement != null)
+                //    result.NumOfSamplesVet = numOfSamplesVetElement.Value;
 
                 var organizationElement = xmlDoc.Descendants(dataContractNs + "Organization").FirstOrDefault();
                 if (organizationElement != null)
@@ -570,9 +690,29 @@ namespace HealthMinistry.Controllers
                 if (remarkElement.Attribute(xsiNs + "nil") != null)
                     result.Remark = remarkElement.Attribute(xsiNs + "nil").Value;
 
-                var requestedTestsElement = xmlDoc.Descendants(dataContractNs + "Requested_Tests").FirstOrDefault();
-                if (requestedTestsElement != null)
-                    result.RequestedTests = requestedTestsElement.Value;
+                //It's for old version
+                //var requestedTestsElement = xmlDoc.Descendants(dataContractNs + "Requested_Tests").FirstOrDefault();
+                //if (requestedTestsElement != null)
+                //{
+
+                //    result.RequestedTests = requestedTestsElement.Value;
+                //}
+
+                List<RequestedTest> requestedTestsList = xmlDoc.Descendants(ns + "REQUESTED_TESTS")
+                     .Select(x => new RequestedTest
+                     {
+                         Barcode = (string)x.Element(dataContractNs + "Barcode"),
+                         BatchNum = (string)x.Element(dataContractNs + "Batch_Num"),
+                         NumOfSamples = (int?)x.Element(dataContractNs + "Num_Of_Samples") ?? 0,
+                         NumOfSamplesVet = (int?)x.Element(dataContractNs + "Num_Of_Samples_Vet") ?? 0,
+                         TestDescription = (string)x.Element(dataContractNs + "Test_Description"),
+                         TestSubCode = (int?)x.Element(dataContractNs + "Test_Sub_Code") ?? 0,
+                         TestTypeCode = (int?)x.Element(dataContractNs + "Test_Type_Code") ?? 0
+                     })
+       .ToList();
+                result.requestedTestsList = requestedTestsList;
+
+
 
                 var returnCodeElement = xmlDoc.Descendants(dataContractNs + "Return_Code").FirstOrDefault();
                 if (returnCodeElement != null)
@@ -632,7 +772,8 @@ namespace HealthMinistry.Controllers
         }
 
         //creating xml document for sending to order_v2 (xml in sdg format)
-        private DOMDocument Create_XML(LabSampleFormResult obj, string barcode)
+        //  private DOMDocument CreateNautilusXML(LabSampleFormResult obj, string barcode)
+        private DOMDocument CreateNautilusXML(SdgNaut sdg)//, string barcode)
         {
             try
             {
@@ -660,117 +801,72 @@ namespace HealthMinistry.Controllers
                 objCreateByWorkflowElem.appendChild(objWorkflowName);
                 objWorkflowName.text = ConfigurationManager.AppSettings["SDG_WF"];
 
-                var description = objDom.createElement("DESCRIPTION");
-                objSdg.appendChild(description);
-                description.text = ConfigurationManager.AppSettings["SDG_DESC"];
-
-                var fcsMessageId = objDom.createElement("U_FCS_MSG_ID");
-                objSdg.appendChild(fcsMessageId);
-                fcsMessageId.text = barcode;
-
-                var sampledBy = objDom.createElement("U_SAMPLED_BY");
-                objSdg.appendChild(sampledBy);
-                sampledBy.text = ConfigurationManager.AppSettings["SAMPLED_BY"];
-
-                var sdgExternalReference = objDom.createElement("EXTERNAL_REFERENCE");
-                objSdg.appendChild(sdgExternalReference);
-                sdgExternalReference.text = barcode;
-
-                var U_SDG_CLIENT = objDom.createElement("U_SDG_CLIENT");
-                objSdg.appendChild(U_SDG_CLIENT);
-                U_SDG_CLIENT.text = myClient.U_SDG_CLIENT;
-
-                var U_PHONE = objDom.createElement("U_PHONE");
-                objSdg.appendChild(U_PHONE);
-                U_PHONE.text = myClient.U_PHONE;
-
-                var U_ADDRESS = objDom.createElement("U_ADDRESS");
-                objSdg.appendChild(U_ADDRESS);
-                U_ADDRESS.text = myClient.U_ADDRESS;
-
-                var U_EMAIL = objDom.createElement("U_EMAIL");
-                objSdg.appendChild(U_EMAIL);
-                U_EMAIL.text = myClient.U_EMAIL;
-
-                var U_CONTECT_NAME = objDom.createElement("U_CONTECT_NAME");
-                objSdg.appendChild(U_CONTECT_NAME);
-                U_CONTECT_NAME.text = myClient.U_CONTECT_NAME;
-
-                var U_CONTACT_PHONE = objDom.createElement("U_CONTACT_PHONE");
-                objSdg.appendChild(U_CONTACT_PHONE);
-                U_CONTACT_PHONE.text = myClient.U_CONTACT_PHONE;
-
-                // Create samples
-                var objSample = objDom.createElement("SAMPLE");
-                objSdg.appendChild(objSample);
-
-                objCreateByWorkflowElem = objDom.createElement("create-by-workflow");
-                objSample.appendChild(objCreateByWorkflowElem);
-
-                objWorkflowName = objDom.createElement("workflow-name");
-                objCreateByWorkflowElem.appendChild(objWorkflowName);
-                objWorkflowName.text = ConfigurationManager.AppSettings["SAMPLE_WF"];
-
-                description = objDom.createElement("DESCRIPTION");
-                objSample.appendChild(description);
-                description.text = obj.ProductBrandName;
-
-                var product = objDom.createElement("PRODUCT_ID");
-                objSample.appendChild(product);
-                product.text = ConfigurationManager.AppSettings["PROD_ID"];
-
-                var dateProduction = objDom.createElement("U_DATE_PRODUCTION");
-                objSample.appendChild(dateProduction);
-                dateProduction.text = obj.ManufactureDate.ToString();
-
-                var containerNumber = objDom.createElement("U_CONTAINER_NUMBER");
-                objSample.appendChild(containerNumber);
-                containerNumber.text = obj.ContainerNum;
-
-                var batchNum = objDom.createElement("U_BATCH");
-                objSample.appendChild(batchNum);
-                batchNum.text = obj.BatchNum;
-
-                var samplingTime = objDom.createElement("U_TXT_SAMPLING_TIME");
-                objSample.appendChild(samplingTime);
-                samplingTime.text = obj.SamplingTime;
-
-                var delFileNum = objDom.createElement("Del_File_Num");
-                objSample.appendChild(delFileNum);
-                delFileNum.text = obj.DelFileNum;
-
-                var smplExternalReference = objDom.createElement("EXTERNAL_REFERENCE");
-                objSample.appendChild(smplExternalReference);
-                smplExternalReference.text = barcode;
+                objSdg.appendChild(objDom.createElement("U_SAMPLED_BY")).text = ConfigurationManager.AppSettings["SAMPLED_BY"];
+                objSdg.appendChild(objDom.createElement("DESCRIPTION")).text = ConfigurationManager.AppSettings["SDG_DESC"];
+                objSdg.appendChild(objDom.createElement("U_FCS_MSG_ID")).text = "TEMP";
+                objSdg.appendChild(objDom.createElement("EXTERNAL_REFERENCE")).text = sdg.Barcode;
+                objSdg.appendChild(objDom.createElement("U_SDG_CLIENT")).text = sdg.Client.U_SDG_CLIENT;
+                objSdg.appendChild(objDom.createElement("U_PHONE")).text = sdg.Client.U_PHONE;
+                objSdg.appendChild(objDom.createElement("U_ADDRESS")).text = sdg.Client.U_ADDRESS;
+                objSdg.appendChild(objDom.createElement("U_EMAIL")).text = sdg.Client.U_EMAIL;
+                objSdg.appendChild(objDom.createElement("U_CONTECT_NAME")).text = sdg.Client.U_CONTECT_NAME;
+                objSdg.appendChild(objDom.createElement("U_CONTACT_PHONE")).text = sdg.Client.U_CONTACT_PHONE;
+                objSdg.appendChild(objDom.createElement("U_FOOD_TEMPERATURE")).text = sdg.U_FOOD_TEMPERATURE;
 
 
-                foreach (AliquotObj aliq in _aliquotList)
+                foreach (var smpl in sdg.Samples)
                 {
-                    var objAliquot = objDom.createElement("ALIQUOT");
-                    objSample.appendChild(objAliquot);
+
+
+                    // Create samples
+                    var objSample = objDom.createElement("SAMPLE");
+                    objSdg.appendChild(objSample);
 
                     objCreateByWorkflowElem = objDom.createElement("create-by-workflow");
-                    objAliquot.appendChild(objCreateByWorkflowElem);
+                    objSample.appendChild(objCreateByWorkflowElem);
 
                     objWorkflowName = objDom.createElement("workflow-name");
                     objCreateByWorkflowElem.appendChild(objWorkflowName);
-                    objWorkflowName.text = aliq.aliquotWorkf;
+                    objWorkflowName.text = ConfigurationManager.AppSettings["SAMPLE_WF"];
 
-                    var aliquotWorkf = objDom.createElement("aliquotWorkf");
-                    objAliquot.appendChild(aliquotWorkf);
-                    aliquotWorkf.text = aliq.aliquotWorkf;
 
-                    var DESCRIPTION = objDom.createElement("DESCRIPTION");
-                    objAliquot.appendChild(DESCRIPTION);
-                    DESCRIPTION.text = aliq.DESCRIPTION;
 
-                    var U_TEST_TEMPLATE_EXTENDED = objDom.createElement("U_TEST_TEMPLATE_EXTENDED");
-                    objAliquot.appendChild(U_TEST_TEMPLATE_EXTENDED);
-                    U_TEST_TEMPLATE_EXTENDED.text = aliq.U_TEST_TEMPLATE_EXTENDED;
+                    objSample.appendChild(objDom.createElement("DESCRIPTION")).text = smpl.description;
+                    objSample.appendChild(objDom.createElement("EXTERNAL_REFERENCE")).text = smpl.Barcode;
+                    objSample.appendChild(objDom.createElement("U_DEL_FILE_NUM")).text = smpl.DelFileNum;
+                    objSample.appendChild(objDom.createElement("U_CONTAINER_NUMBER")).text = smpl.ContainerNum;
+                    objSample.appendChild(objDom.createElement("PRODUCT_ID")).text = smpl.product;
+                    objSample.appendChild(objDom.createElement("U_DATE_PRODUCTION")).text = smpl.dateProduction;
+                    objSample.appendChild(objDom.createElement("U_BATCH")).text = smpl.batchNum;
+                    objSample.appendChild(objDom.createElement("U_TXT_SAMPLING_TIME")).text = smpl.SamplingDate;
+                    objSample.appendChild(objDom.createElement("U_TXT_SAMPLING_TIME2")).text = smpl.SamplingTime;
 
+
+                    foreach (AliquotObj aliq in smpl.aliquots)
+                    {
+                        var objAliquot = objDom.createElement("ALIQUOT");
+                        objSample.appendChild(objAliquot);
+
+                        objCreateByWorkflowElem = objDom.createElement("create-by-workflow");
+                        objAliquot.appendChild(objCreateByWorkflowElem);
+
+                        objWorkflowName = objDom.createElement("workflow-name");
+                        objCreateByWorkflowElem.appendChild(objWorkflowName);
+                        objWorkflowName.text = aliq.Workflow_name;
+
+                        //var aliquotWorkf = objDom.createElement("aliquotWorkf");
+                        //objAliquot.appendChild(aliquotWorkf);
+                        //aliquotWorkf.text = aliq.Workflow_name;
+
+                        objAliquot.appendChild(objDom.createElement("DESCRIPTION")).text = aliq.DESCRIPTION;
+                        objAliquot.appendChild(objDom.createElement("U_TEST_TEMPLATE_EXTENDED")).text = aliq.U_TEST_TEMPLATE_EXTENDED;
+                        objAliquot.appendChild(objDom.createElement("EXTERNAL_REFERENCE")).text = aliq.External_ref;
+
+
+                    }
                 }
                 //debug mode
-                //objDom.save(@"C:\Users\avigaile\Desktop\new 7.xml");
+                objDom.save(Path.Combine(LOG, "Login " + sdg.Barcode + ".xml"));
                 Write($"From Create_XML: xml obj created successfully");
                 return objDom;
             }
@@ -841,6 +937,7 @@ namespace HealthMinistry.Controllers
 
                     XmlDocument xdoc = new XmlDocument();
                     xdoc.Load(_xmlTemplateDirection);
+                    //xdoc.Save(Path.Combine(LOG, "_xml Template Direction " + coaReport.SdgId.Value + ".xml"));
 
 
                     var nsmgr1 = new XmlNamespaceManager(xdoc.NameTable);
@@ -884,7 +981,7 @@ namespace HealthMinistry.Controllers
 
                     string dt = DateTime.Now.ToString("dd-M-yyyy--HH-mm-ss");
 
-                    string XmlFileName = _xmlTemplateDirection + dt + "_" + sdg.U_FCS_MSG + ".xml";
+                    string XmlFileName = Path.Combine(LOG, "result " + dt + "_" + sdg.ExternalReference + ".xml");
 
                     xdoc.Save(XmlFileName);
 
@@ -1043,91 +1140,6 @@ namespace HealthMinistry.Controllers
 
         #endregion
 
-        #region api requests
-
-        //sending api request (sample, 2nd result)
-        public string SendRequestWithXML(string xmlString, string url, string soapAction, string pfxPath)
-        {
-            try
-            {
-
-                ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
-                X509Certificate2Collection collection;
-                collection = new X509Certificate2Collection();
-                collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
-
-
-                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-                request.ClientCertificates = new X509CertificateCollection();
-                request.ClientCertificates.AddRange(collection);
-                System.Net.ServicePointManager.SecurityProtocol = (SecurityProtocolType)(0xc0 | 0x300 | 0xc00); //SecurityProtocolType.Tls;//| SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12
-                request.Method = "POST";
-                request.ContentType = "text/xml;charset=utf-8";
-                request.Timeout = 600000;
-                request.Headers.Add("SOAPAction", soapAction);
-
-
-                byte[] xmlBytes = Encoding.UTF8.GetBytes(xmlString);
-
-
-                using (Stream requestStream = request.GetRequestStream())
-                {
-                    requestStream.Write(xmlBytes, 0, xmlBytes.Length);
-                }
-
-                using (WebResponse response = request.GetResponse())
-                {
-                    using (Stream responseStream = response.GetResponseStream())
-                    {
-                        using (StreamReader reader = new StreamReader(responseStream))
-                        {
-                            string responseXml = reader.ReadToEnd();
-                            return responseXml;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Write($"From SendRequestWithXML: {ex.Message}");
-                return msgList[5];
-            }
-        }
-
-        //sending api request (1st result)
-        public string SendRequestWithPDF(string coaReportPdfPath)
-        {
-
-            try
-            {
-                var client = new RestClient(_hmApiFiles);
-                var request = new RestRequest(Method.POST);
-
-                // Disable SSL certificate validation
-                ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
-                X509Certificate2Collection collection = new X509Certificate2Collection();
-                collection.Import(_pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
-
-
-                client.ClientCertificates = new X509CertificateCollection();
-                client.ClientCertificates.AddRange(collection);
-                ServicePointManager.SecurityProtocol = (SecurityProtocolType)(0xc0 | 0x300 | 0xc00);
-
-                request.AlwaysMultipartFormData = true;
-                request.AddHeader("Content-Type", "multipart/form-data");
-                request.AddFile("", coaReportPdfPath);
-
-                var response = client.Execute(request);
-                return response.Content;
-            }
-            catch (Exception ex)
-            {
-                Write($"From SendRequestWithPDF: {ex.Message}");
-                return msgList[5];
-            }
-        }
-        #endregion
-
         #region generic functions
 
         //connecting to microb db
@@ -1165,29 +1177,76 @@ namespace HealthMinistry.Controllers
                 }
 
             }
-            catch(Exception ex) {
+            catch (Exception ex)
+            {
 
                 Write($"From GetDate: {ex.Message}");
                 return null;
-            }   
+            }
 
-                return null;
+            return null;
 
         }
+       
 
 
         private void Write(string s)
         {
+
             try
             {
-                Logger.WriteLogFile(s);
+                string fullPath = Path.Combine(LOG, "Nautilus_WS" + "-" + DateTime.Now.ToString("dd-MM-yyyy") + ".txt");
+
+                using (FileStream stream = new FileStream(fullPath, FileMode.Append, FileAccess.Write))
+                {
+                    StreamWriter streamWriter = new StreamWriter(stream);
+                    streamWriter.WriteLine(DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff"));
+                    streamWriter.WriteLine(s);
+                    streamWriter.WriteLine();
+                    streamWriter.Close();
+                }
             }
-            catch { }
+            catch
+            {
+            }
+
         }
 
         #endregion
 
-
         #endregion
+
+        public static bool IsXml(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return false;
+
+            // Simple regex to check for basic XML structure
+            return Regex.IsMatch(input.Trim(), @"^<[^?].*>$", RegexOptions.Singleline);
+        }
+        private void LogReuest(HttpWebRequest request)
+        {
+
+            Write(request.RequestUri.ToString());         // The URI of the request
+                                                          //    Write(request.Address             );// The endpoint being accessed
+            Write(request.Host);// The host name/authority
+            Write(request.ConnectionGroupName);// Name of connection group (useful for logging groups of requests)
+
+            ;// Headers that are useful for logging
+             //Write(request.Headers .Coun          );// All headers collection
+            Write(request.ContentType);// Content type being sent
+                                       // Write(request.ContentLength    );// Size of the request in bytes
+            Write(request.UserAgent);// User agent string
+            Write(request.Accept);// Accept header value
+
+            // Timing/Performance properties
+            Write(request.Timeout.ToString());// Request timeout value
+            Write(request.ReadWriteTimeout.ToString());// Read/write timeout value
+            Write(request.ContinueTimeout.ToString());// 100-continue timeout value
+
+            // Connection info
+            Write(request.ProtocolVersion.ToString());// HTTP protocol version
+            Write(request.ServicePoint.ToString());// Details about the connection to the server
+            Write(request.Proxy.ToString());
+        }
     }
 }
