@@ -1,4 +1,4 @@
-﻿namespace HealthMinistry.FCSObjects
+﻿namespace HealthMinistry.FCSObjects.FromFCS
 {
     public class RequestedTest
     {

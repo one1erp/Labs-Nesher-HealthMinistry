@@ -1,13 +1,7 @@
-﻿using DAL;
-using HealthMinistry.Controllers;
-using HealthMinistry.NautObjects;
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Configuration;
-using System.Linq;
-using System.Web;
 
-namespace HealthMinistry.NautObjects
+namespace HealthMinistry.NautObjects.ToNautilus
 {
     public partial class SdgNaut
     {
@@ -36,5 +30,6 @@ namespace HealthMinistry.NautObjects
         internal ClientObj Client { get; set; }
 
         public List<SampleObj> Samples { get; set; }
+        public string U_MINISTRY_OF_HEALTH { get; internal set; }
     }
 }

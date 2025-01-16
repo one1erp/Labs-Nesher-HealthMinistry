@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Configuration;
 
-namespace HealthMinistry.NautObjects
+namespace HealthMinistry.NautObjects.ToNautilus
 {
     public partial class SdgNaut
     {
@@ -26,6 +26,9 @@ namespace HealthMinistry.NautObjects
             public string SamplingTime { get; internal set; }
             public string Barcode { get; internal set; }
             public string SamplingDate { get; internal set; }
+            public string Producer_Name { get; internal set; }
+
+            
 
             public void AddAliquot(AliquotObj aliquot)
             {

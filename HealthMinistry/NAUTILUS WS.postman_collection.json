@@ -1,0 +1,65 @@
+{
+	"info": {
+		"_postman_id": "38c0b77b-a4fe-4c94-9a30-f5c98f883652",
+		"name": "NAUTILUS WS",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "3526121",
+		"_collection_link": "https://winter-sunset-649516.postman.co/workspace/Fcs-lab-test~b8eeae9b-36c4-487e-a08f-398304152853/collection/3526121-38c0b77b-a4fe-4c94-9a30-f5c98f883652?action=share&source=collection_link&creator=3526121"
+	},
+	"item": [
+		{
+			"name": "NAUTILUS WS Get Sample",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:53639/Home/FcsSampleRequest?barcode=476784",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "53639",
+					"path": [
+						"",
+						"Home",
+						"FcsSampleRequest"
+					],
+					"query": [
+						{
+							"key": "barcode",
+							"value": "476784"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NAUTILUS WS Send Result",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:53639/Home/FcsResultRequest?coaid=377",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "53639",
+					"path": [
+						"",
+						"Home",
+						"FcsResultRequest"
+					],
+					"query": [
+						{
+							"key": "coaid",
+							"value": "377"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

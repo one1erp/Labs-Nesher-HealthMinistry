@@ -1,33 +1,33 @@
 ﻿//using Common;
-using DAL;
+
+
+using HealthMinistry.NautObjects.FromNautilus;
+using HealthMinistry.Common;
 using HealthMinistry.FCSObjects;
+using HealthMinistry.FCSObjects.FromFCS;
 using HealthMinistry.Logic;
 using HealthMinistry.NautObjects;
-using Microsoft.SqlServer.Server;
+using HealthMinistry.NautObjects.ToNautilus;
 using MSXML;
 using Oracle.DataAccess.Client;
 using RestSharp;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Security;
-using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
-using System.Security.Policy;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Web.Mvc;
 using System.Web.UI.WebControls;
 using System.Xml;
 
 using System.Xml.Linq;
-using static System.Net.Mime.MediaTypeNames;
+using System.Security.Cryptography;
+using System.Security.Policy;
+using System.Net.Http;
 
 namespace HealthMinistry.Controllers
 {
@@ -37,33 +37,49 @@ namespace HealthMinistry.Controllers
         public ActionResult Index()
         {
 
+            #region Result Form Testing
+            // InitParam();
 
-            #region Testing
+            // string pdfpath = string.Empty;        
+            // NautilusToFcs toFcs = new NautilusToFcs();
+            // string pdfFCSresult = "Some Guide return from FCS";
+            // CoaObj coa = toFcs.GetCoaReportById("603");
+            //coa.FCSguide=pdfFCSresult;
+            // var NautDataXml = toFcs.BuildXmlToFcs(coa);
 
-            string f = "";
-            if (1 == 2)
-            { f = "Sample Response 2024201756651.xml"; }
-            else { f = "Sample with sampling val.xml"; }
 
-            InitParam();
+            #endregion
+      
+            #region Sample Form Testing
 
-            var d = XDocument.Load(@"C:/TEMP/" + f);
+            //string f = "";
+            //if (1 == 1)
+            //{ f = "Sample Response 637815.xml"; }
+            //else { f = "Sample with sampling val.xml"; }
 
-            LabSampleFormResult labSample = ExtractLabSampleForm(d);
-            d.Save(Path.Combine(LOG, "Sample Response " + labSample.Barcode + "YYY.xml"));
-            var x = labSample.TestDescription;
-            var y = labSample.requestedTestsList.Count;
+            //InitParam();
 
-            FcsToNautilus fcsToNautilus = new FcsToNautilus(labSample);
+            //var d = XDocument.Load(@"C:/TEMP/" + f);
 
-            string succsses = fcsToNautilus.Convert();
-            //validiating labSampleForm object
 
-            if (string.IsNullOrEmpty(succsses))
-            {
-                CreateNautilusXML(fcsToNautilus.sdgNaut);
-            }
-#endregion
+            //Sample_Form_Response labSample = ExtractLabSampleForm(d);
+            //d.Save(Path.Combine(LOG, "Sample Response " + labSample.Barcode + "YYY.xml"));
+            //var x = labSample.TestDescription;
+            //var y = labSample.requestedTestsList.Count;
+
+            //FcsToNautilus fcsToNautilus = new FcsToNautilus(labSample);
+
+            //string succsses = fcsToNautilus.Convert();
+            ////validiating labSampleForm object
+
+            //if (string.IsNullOrEmpty(succsses))
+            //{
+            //    CreateNautilusXML(fcsToNautilus.sdgNaut);
+            //}
+            #endregion
+
+
+
 
             return View();
 
@@ -84,21 +100,13 @@ namespace HealthMinistry.Controllers
 
 
         #region variables
-
-        public IDataLayer _dal = null;
-        private OracleCommand _cmd;
-
-        private string sql;
-        private string _errorMsg = "";
+ 
         private string _soapActionSample, _cs, _urlApiService, _soapActionResult, LOG, _pfxPath, _hmApiFiles, _xmlTemplateDirection;
 
         #region Constants
 
-        private string[] classes = new string[]
-        { "Attached_Document", "ATTACHED_DOCUMENT", "Report_Notes", "Test_Results", "Test_Result", "Report_Notes", "Lab_Notes", "Report_Date" };
 
         #endregion
-        OracleConnection oraCon = new OracleConnection(ConfigurationManager.ConnectionStrings["connectionString"].ConnectionString);
 
         #endregion
 
@@ -113,10 +121,10 @@ namespace HealthMinistry.Controllers
             {
 
                 InitParam();
-                Write("Start FcsSampleRequest");
-                openSqlConnection();
 
-                if (oraCon.State != System.Data.ConnectionState.Open) oraCon.Open();
+                Logger.Write("Start FcsSampleRequest");
+
+
 
                 //building xml with barcode for 1st request
                 string xmlStringBarcode = BuildSampleRquest(barcode);
@@ -128,40 +136,41 @@ namespace HealthMinistry.Controllers
                 var response = SendRequest2FCS(xmlStringBarcode, _urlApiService, _soapActionSample, _pfxPath);
 
                 //In case of error while sending - return.
-                if (response.Equals(Constants.msgList[5])) return Constants.msgList[3];
+                if (response.Equals(ConstantsMsg.msgList[5])) return ConstantsMsg.msgList[3];
 
                 //parsing the response to xml
                 XDocument xmlDocResponse = XDocument.Parse(response);
                 xmlDocResponse.Save(Path.Combine(LOG, "Sample Response " + barcode + ".xml"));
 
                 //parsing the xml to labSampleForm - a HM object
-                LabSampleFormResult labSampleForm = ExtractLabSampleForm(xmlDocResponse);
+                Sample_Form_Response labSampleForm = ExtractLabSampleForm(xmlDocResponse);
+
                 if (labSampleForm == null)
                 {
-                    Write($"From FcsSampleRequest: failed");
-                    return Constants.msgList[3];
+                    Logger.Write($"From FcsSampleRequest: failed");
+                    return ConstantsMsg.msgList[3];
                 }
 
                 //labSampleForm contains information about itself
                 if (labSampleForm.ReturnCode != "0" && labSampleForm.ReturnCode != "1")
                 {
-                    Write($"The process was completed unsuccessfully, {labSampleForm.ReturnCodeDesc} )");
+                    Logger.Write($"The process was completed unsuccessfully, {labSampleForm.ReturnCodeDesc} )");
                     return labSampleForm.ReturnCodeDesc;
                 }
 
-                Write($"Converting Fcs To Nautilus.");
+                Logger.Write($"Converting Fcs To Nautilus.");
 
-                FcsToNautilus fcsToNautilus = new FcsToNautilus(oraCon, labSampleForm);
+                FcsToNautilus fcsToNautilus = new FcsToNautilus(labSampleForm);
                 string succsses = fcsToNautilus.Convert();
                 //validiating labSampleForm object
 
-                Write($"Converting "+ succsses);
+                Logger.Write($"Converting " + succsses);
 
 
                 if (!string.IsNullOrEmpty(succsses))
                     return succsses;
 
-                Write($"Build Xml For Nautilus.");
+                Logger.Write($"Build Xml For Nautilus.");
 
                 //if labSampleForm is valid, parsing it to xml
                 DOMDocument nautilusXml = CreateNautilusXML(fcsToNautilus.sdgNaut);
@@ -169,21 +178,21 @@ namespace HealthMinistry.Controllers
                 //The calling method from orderv2 proj gets the xml and proccesses it to a sdg
                 if (nautilusXml != null)
                 {
-                    Write($"The process was completed successfully, xml string for creating sdg was sent to order_v2");
+                    Logger.Write($"The process was completed successfully, xml string for creating sdg was sent to order_v2");
                     return nautilusXml.xml;
                 }
 
                 //debug mode - for postman
                 //return labSampleForm.ToString();
 
-                Write($"labSampleForm created, but docXml is null");
+                Logger.Write($"labSampleForm created, but docXml is null");
                 return null;
 
             }
             catch (Exception ex)
             {
-                Write($"From FcsSampleRequest: {ex.Message}");
-                return Constants.msgList[3];
+                Logger.Write($"From FcsSampleRequest: {ex.Message}");
+                return ConstantsMsg.msgList[3];
             }
 
         }
@@ -195,65 +204,78 @@ namespace HealthMinistry.Controllers
 
             try
             {
-                bool dbg = true;// (Environment.MachineName == "ONE1PC2643");//true                    
+                // bool dbg = true;// (Environment.MachineName == "ONE1PC2643");//true                    
                 InitParam();
-                Write("Start FcsResultRequest");
+                Logger.Write("Start FcsResultRequest");
                 string pdfpath = string.Empty;
-                COA_Report coaReport = new COA_Report();
 
-
-                _dal = new DataLayer();
-                _dal.Connect(_cs);
-
-                coaReport = _dal.GetCoaReportById(long.Parse(coaId));
-
-                if (coaReport == null) return Constants.msgList[0];
-
-                if (coaReport.Status != "A")
-                { Write(Constants.msgList[1]); return Constants.msgList[1]; }
-                if (coaReport.PdfPath == null)
-                { Write(Constants.msgList[2]); return Constants.msgList[2]; }
-                pdfpath = coaReport.PdfPath;
+                NautilusToFcs toFcs = new NautilusToFcs();
+                CoaObj coaReport = toFcs.GetCoaReportById(coaId);
 
 
 
-                if (dbg)
-                    pdfpath = "C:\\TEMP\\TEST PDF.pdf";
-                else
-                {
+                if (coaReport == null) return ConstantsMsg.msgList[0];
 
-                }
+                if (coaReport.Status != "A") { Logger.Write(ConstantsMsg.msgList[1]); return ConstantsMsg.msgList[1]; }
+                if (coaReport.PdfPath == null) { Logger.Write(ConstantsMsg.msgList[2]); return ConstantsMsg.msgList[2]; }
+
+
+
+
+
+                //     if (dbg)
+                //        pdfpath = "C:\\TEMP\\TEST PDF.pdf";
+
                 //sending 2nd request (result) proccessing response and sending back to HM
-                string resultRequest1_response = string.Empty;
 
-                resultRequest1_response = SendRequestWithPDF(pdfpath, _pfxPath);
+                string pdfFCSresult = SendRequestWithPDF(coaReport.PdfPath, _pfxPath);
 
                 //sending request failed
-                if (resultRequest1_response.Equals("failed")) return Constants.msgList[3];
+                if (pdfFCSresult.Equals("failed")) return ConstantsMsg.msgList[3];
 
 
-                //return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa debug";
 
                 //3rd request to HM - proccessed response from 2nd request:
 
                 //parsing 2nd response to unique xml format
-                var xmlFile = ParseToXML_res_1(coaReport, resultRequest1_response);
 
-                //parsing the xml to string
-                string xmlString = xmlFile.OuterXml;
+
+                coaReport.FCSguide = pdfFCSresult;
+
+                string xmlString;
+
+
+                    var NautDataXml = toFcs.BuildXmlToFcs(coaReport);
+                    xmlString = NautDataXml.OuterXml;
+                
+          
+
+
+                Logger.Write(xmlString);
 
                 //sending 3rd request to HM, with proccessed string
                 string responseFrom2ndResReq = SendRequest2FCS(xmlString, _urlApiService, _soapActionResult, _pfxPath);
 
                 //loading 3rd response to xml (for easy serching information)
-
+                string dt = DateTime.Now.ToString("dd-MM-yyyy-HH-mm-ss");
                 XmlDocument xmlDoc = new XmlDocument();
-                if (!IsXml(responseFrom2ndResReq)) return responseFrom2ndResReq;
 
-                xmlDoc.LoadXml(responseFrom2ndResReq);
+                if (!IsXml(responseFrom2ndResReq))
+                {
+                    System.IO.File.WriteAllText(Path.Combine(LOG, "Result from Fcs COA -" + dt + ".log"), responseFrom2ndResReq);
+
+                    return responseFrom2ndResReq;
+                }
+                else
+                {
 
 
 
+                    xmlDoc.LoadXml(responseFrom2ndResReq);
+
+
+                    xmlDoc.Save(Path.Combine(LOG, "Result Response COA -" + dt + coaId + ".xml"));
+                }
                 XmlNamespaceManager nsManager = new XmlNamespaceManager(xmlDoc.NameTable);
                 nsManager.AddNamespace("a", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
 
@@ -268,8 +290,8 @@ namespace HealthMinistry.Controllers
                     //Return_Code is 0/1 - success
                     if (returnCodeValue == "0" || returnCodeValue == "1")
                     {
-                        Write($"The process was completed successfully, return code: {returnCodeValue}");
-                        return Constants.msgList[4];
+                        Logger.Write($"The process was completed successfully, return code: {returnCodeValue}");
+                        return ConstantsMsg.msgList[4];
                     }
                     //something was wrong
                     else
@@ -278,19 +300,19 @@ namespace HealthMinistry.Controllers
                         XmlNode returnCodeDescNode = xmlDoc.SelectSingleNode("//a:Return_Code_Desc", nsManager);
                         if (returnCodeDescNode != null)
                         {
-                            Write($"The process was completed unsuccessfully, return code: {returnCodeValue}");
+                            Logger.Write($"The process was completed unsuccessfully, return code: {returnCodeValue}");
                             return returnCodeDescNode.InnerText;
                         }
                     }
 
                 }
 
-                Write($"returnCodeDescNode is null");
+                Logger.Write($"returnCodeDescNode is null");
                 return null;
             }
             catch (Exception ex)
             {
-                Write($"From FcsResultRequest: {ex.Message}");
+                Logger.Write($"From FcsResultRequest: {ex.Message}");
                 return ex.Message;
             }
 
@@ -319,44 +341,30 @@ namespace HealthMinistry.Controllers
             try
             {
 
-                bool test = url.ToUpper().Contains("TEST");
+                bool isTestEnvironment = url.ToUpper().Contains("TEST");
+
+                Logger.Write($"[DEBUG] Loading certificates: {DateTime.Now}");
+                X509Certificate2Collection certificates = LoadCertificates(isTestEnvironment, pfxPath);
+                Logger.Write($"[DEBUG] Certificates loaded: {DateTime.Now}");
+
+
                 ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
-                X509Certificate2Collection collection;
-                if (test)
-                {
-                    Write("test section");
-                    collection = new X509Certificate2Collection();
-                    collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
-                }
-                else
-                {
-                    Write("Prod section");
-                    string subjectName = "Institute For Food Microbiology";
 
-                    X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
-                    store.Open(OpenFlags.ReadOnly);
-                    X509Certificate2Collection certificates = store.Certificates;
-                    X509Certificate2Collection foundCertificates = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
-                    collection = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
-
-                }
-
-
-                if (dbg) Write("BEFORE request");
 
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-                request.ClientCertificates = new X509CertificateCollection();
-                request.ClientCertificates.AddRange(collection);
-
-                if (dbg) Write(" SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tl");
-
-                //System.Net.ServicePointManager.SecurityProtocol = (SecurityProtocolType)(0xc0 | 0x300 | 0xc00); 
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
                 request.Method = "POST";
                 request.ContentType = "text/xml;charset=utf-8";
                 request.Timeout = 600000;
                 request.Headers.Add("SOAPAction", soapAction);
+                request.ClientCertificates = new X509CertificateCollection();
+                request.ClientCertificates.AddRange(certificates);
 
+
+
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+
+                //      string b = "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"\r\n                  xmlns:fcs=\"http://www.moh.gov.co.il/FoodApp/FCS_Labs\"\r\n                  xmlns:fcs1=\"http://schemas.datacontract.org/2004/07/FCS_LabsLib\">\r\n   <soapenv:Header/>\r\n   <soapenv:Body>\r\n      <fcs:Lab_Results_Form>\r\n         <fcs:Request>\r\n            <fcs1:Arrival_Temp>קירור</fcs1:Arrival_Temp>\r\n            <fcs1:Attached_Document>\r\n               <fcs1:ATTACHED_DOCUMENT>\r\n                  <fcs1:Document_Name>TEST PDF.pdf</fcs1:Document_Name>\r\n                  <fcs1:Document_Type_Code>1</fcs1:Document_Type_Code>\r\n                  <fcs1:FileExt>.pdf</fcs1:FileExt>\r\n                  <fcs1:FileName>Test_File.pdf</fcs1:FileName>\r\n                  <fcs1:GUID>35fb2b9d-7c1f-41a9-8935-b66e0d39774c.pdf</fcs1:GUID>\r\n                  <fcs1:Link_To_Document>TEST PDF.pdf</fcs1:Link_To_Document>\r\n               </fcs1:ATTACHED_DOCUMENT>\r\n            </fcs1:Attached_Document>\r\n            <fcs1:Barcode>637815</fcs1:Barcode>\r\n            <fcs1:Is_Complete>true</fcs1:Is_Complete>\r\n            <fcs1:Lab_Code>13</fcs1:Lab_Code>\r\n            <fcs1:Lab_Report_ID>25-000009 (3)F</fcs1:Lab_Report_ID>\r\n            <fcs1:Lab_Report_Ver>1</fcs1:Lab_Report_Ver>\r\n            <fcs1:Report_Date>\r\n               <fcs1:Day>13</fcs1:Day>\r\n               <fcs1:Month>01</fcs1:Month>\r\n               <fcs1:Year>2025</fcs1:Year>\r\n            </fcs1:Report_Date>\r\n            <fcs1:Sample_Form_Num>1</fcs1:Sample_Form_Num>\r\n            <fcs1:Test_Results>\r\n               <fcs1:Test_Result>\r\n                  <fcs1:LIMS_Samp_ID>25-000009/001</fcs1:LIMS_Samp_ID>\r\n                  <fcs1:Measurement_Unit>SI 885/3</fcs1:Measurement_Unit>\r\n                  <fcs1:Result>15</fcs1:Result>\r\n                  <fcs1:Sample_Description>ירקות קפואים.</fcs1:Sample_Description>\r\n                  <fcs1:Test_Name>Total Count</fcs1:Test_Name>\r\n                  <fcs1:Test_Sub_Code>1</fcs1:Test_Sub_Code>\r\n               </fcs1:Test_Result>\r\n            </fcs1:Test_Results>\r\n            <fcs1:Tester_Name>המכון למיקרוביולוגיה</fcs1:Tester_Name>\r\n         </fcs:Request>\r\n      </fcs:Lab_Results_Form>\r\n   </soapenv:Body>\r\n</soapenv:Envelope>\r\n";
+                //      string lbr_examp = "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:fcs=\"http://www.moh.gov.co.il/FoodApp/FCS_Labs\" xmlns:fcs1=\"http://schemas.datacontract.org/2004/07/FCS_LabsLib\">\r\n<soapenv:Header/>\r\n<soapenv:Body>\r\n<fcs:Lab_Results_Form>\r\n<!-- Optional: -->\r\n<fcs:Request>\r\n<!-- Optional: -->\r\n<fcs1:Arrival_Temp/>\r\n<!-- Optional: -->\r\n<fcs1:Attached_Document>\r\n<!-- 0 to 100 repetitions: -->\r\n<fcs1:ATTACHED_DOCUMENT>\r\n<!-- Optional: -->\r\n<fcs1:Document_Name>צרופה לתעודה</fcs1:Document_Name>\r\n<!-- Optional: -->\r\n<fcs1:Document_Type_Code>2</fcs1:Document_Type_Code>\r\n<!-- Optional: -->\r\n<fcs1:FileExt>jpg</fcs1:FileExt>\r\n<!-- Optional: -->\r\n<fcs1:FileName/>\r\n<!-- Optional: -->\r\n<fcs1:GUID/>\r\n<!-- Optional: -->\r\n<fcs1:Link_To_Document>?</fcs1:Link_To_Document>\r\n</fcs1:ATTACHED_DOCUMENT>\r\n</fcs1:Attached_Document>\r\n<!-- Optional: -->\r\n<fcs1:Barcode>387086</fcs1:Barcode>\r\n<!-- Optional: -->\r\n<fcs1:Is_Complete>true</fcs1:Is_Complete>\r\n<!-- Optional: -->\r\n<fcs1:Lab_Code>3</fcs1:Lab_Code>\r\n<!-- Optional: -->\r\n<fcs1:Lab_Report_ID>M-2020/764</fcs1:Lab_Report_ID>\r\n<!-- Optional: -->\r\n<fcs1:Lab_Report_Ver>1</fcs1:Lab_Report_Ver>\r\n<!-- Optional: -->\r\n<fcs1:Matching>true</fcs1:Matching>\r\n<!-- Optional: -->\r\n<fcs1:Organization/>\r\n<!-- Optional: -->\r\n<fcs1:Package_Condition/>\r\n<!-- Optional: -->\r\n<fcs1:Report_Date>\r\n<!-- Optional: -->\r\n<fcs1:Day>22</fcs1:Day>\r\n<!-- Optional: -->\r\n<fcs1:Month>11</fcs1:Month>\r\n<!-- Optional: -->\r\n<fcs1:Year>20</fcs1:Year>\r\n</fcs1:Report_Date>\r\n<!-- Optional: -->\r\n<fcs1:Report_Notes>\r\n<!-- 0 to 100 repetitions: -->\r\n<fcs1:LabNotes>\r\n<!-- Optional: -->\r\n<fcs1:Note/>\r\n<!-- Optional: -->\r\n<fcs1:Note_Type/>\r\n</fcs1:LabNotes>\r\n</fcs1:Report_Notes>\r\n<!-- Optional: -->\r\n<fcs1:Sample_Form_Num>1</fcs1:Sample_Form_Num>\r\n<!-- Optional: -->\r\n<fcs1:Test_Results>\r\n<!-- 0 to 100 repetitions: -->\r\n<fcs1:Test_Result>\r\n<!-- Optional: -->\r\n<fcs1:Analyte_Name>שינוי במרקם/ ריח/ צבע</fcs1:Analyte_Name>\r\n<!-- Optional: -->\r\n<fcs1:LIMS_Samp_ID>B-M-202003680</fcs1:LIMS_Samp_ID>\r\n<!-- Optional: -->\r\n<fcs1:LOD>0.00</fcs1:LOD>\r\n<!-- Optional: -->\r\n<fcs1:LOQ>0.00</fcs1:LOQ>\r\n<!-- Optional: -->\r\n<fcs1:Lims_Test_Code>119</fcs1:Lims_Test_Code>\r\n<!-- Optional: -->\r\n<fcs1:ManufResult/>\r\n<!-- Optional: -->\r\n<fcs1:Marking/>\r\n<!-- Optional: -->\r\n<fcs1:Measurement_Unit>גרם</fcs1:Measurement_Unit>\r\n<!-- Optional: -->\r\n<fcs1:Measurement_Unit_Code>1</fcs1:Measurement_Unit_Code>\r\n<!-- Optional: -->\r\n<fcs1:Method>?</fcs1:Method>\r\n<!-- Optional: -->\r\n<fcs1:Notes>\r\n<!-- 0 to 100 repetitions: -->\r\n<fcs1:LabNotes>\r\n<!-- Optional: -->\r\n<fcs1:Note/>\r\n<!-- Optional: -->\r\n<fcs1:Note_Type/>\r\n</fcs1:LabNotes>\r\n</fcs1:Notes>\r\n<!-- Optional: -->\r\n<fcs1:Result>5.6</fcs1:Result>\r\n<!-- Optional: -->\r\n<fcs1:Result_Num>1</fcs1:Result_Num>\r\n<!-- Optional: -->\r\n<fcs1:Sample_Description>?</fcs1:Sample_Description>\r\n<!-- Optional: -->\r\n<fcs1:Temprature>55</fcs1:Temprature>\r\n<!-- Optional: -->\r\n<fcs1:Test_Name>כשר השתמרות</fcs1:Test_Name>\r\n<!-- Optional: -->\r\n<fcs1:Test_Sub_Code>13</fcs1:Test_Sub_Code>\r\n<!-- Optional: -->\r\n<fcs1:uncertainty/>\r\n</fcs1:Test_Result>\r\n</fcs1:Test_Results>\r\n<!-- Optional: -->\r\n<fcs1:Tester_Name>ph</fcs1:Tester_Name>\r\n</fcs:Request>\r\n</fcs:Lab_Results_Form>\r\n</soapenv:Body>\r\n</soapenv:Envelope>";
 
                 byte[] xmlBytes = Encoding.UTF8.GetBytes(xmlString);
 
@@ -366,49 +374,94 @@ namespace HealthMinistry.Controllers
                 {
 
                     requestStream.Write(xmlBytes, 0, xmlBytes.Length);
+                }
 
-                    if (dbg) Write("BEFORE response");
-                    if (dbg) Write("BEFORE response 3333333333");
+                Logger.Write("[DEBUG] Sending request to server..." + url);
+                using (WebResponse response = request.GetResponse())
+                {
+                    Logger.Write("[DEBUG] Successfully received response.");
 
-                    // Basic logging properties
-
-                    if (dbg) LogReuest(request);
-
-                    using (WebResponse response = request.GetResponse())
+                    using (Stream responseStream = response.GetResponseStream())
                     {
-                        if (dbg) Write("BEFORE responseStream");
+                        if (dbg) Logger.Write("BEFORE reader");
 
-                        using (Stream responseStream = response.GetResponseStream())
+                        using (StreamReader reader = new StreamReader(responseStream))
                         {
-                            if (dbg) Write("BEFORE reader");
+                            if (dbg) Logger.Write("BEFORE ReadToEnd");
 
-                            using (StreamReader reader = new StreamReader(responseStream))
+                            string responseXml = reader.ReadToEnd();
+                            Logger.Write(responseXml);
+                            return responseXml;
+                        }
+                    }
+                }
+
+            }
+            catch (WebException ex)
+            {
+                Logger.Write($"[ERROR] WebException occurred: {ex.Message}");
+
+                // Log detailed error information
+                if (ex.Response != null)
+                {
+                    using (Stream errorStream = ex.Response.GetResponseStream())
+                    {
+                        if (errorStream != null)
+                        {
+                            using (StreamReader reader = new StreamReader(errorStream))
                             {
-                                if (dbg) Write("BEFORE ReadToEnd");
+                                string errorResponse = reader.ReadToEnd();
+                                Logger.Write($"[ERROR] Response from server: {errorResponse}");
+                                System.IO.File.WriteAllText(Path.Combine(LOG, "Error on SendRequest2FCS-" + DateTime.Now.ToString("dd MM yyyyy HH mm ss") + ".xml"), errorResponse);
 
-                                string responseXml = reader.ReadToEnd();
-                                Write(responseXml);
-                                return responseXml;
                             }
                         }
                     }
                 }
-            }
-            catch (WebException ex)
-            {
-                Write($"From SendRequest2FCS: {ex.Message}");
+
+                // Log stack trace and inner exception details
                 if (ex.InnerException != null)
                 {
-                    Write(ex.InnerException.StackTrace);
-                    Write(ex.InnerException.Source);
-                    Write(ex.InnerException.ToString());
-                    Write(ex.InnerException.Message);
+                    Logger.Write($"[ERROR] Inner Exception: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
                 }
 
-                return Constants.msgList[5];
+                return ConstantsMsg.msgList[5];
             }
         }
 
+        private X509Certificate2Collection LoadCertificates(bool isTestEnvironment, string pfxPath)
+        {
+            try
+            {
+                if (isTestEnvironment)
+                {
+                    Logger.Write("Loading certificates for Test environment.");
+                    var collection = new X509Certificate2Collection();
+                    collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
+                    return collection;
+                }
+                else
+                {
+                    Logger.Write("Loading certificates for Production environment.");
+                    string subjectName = "Institute For Food Microbiology";
+                    using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine))
+                    {
+                        store.Open(OpenFlags.ReadOnly);
+                        var certificates = store.Certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
+                        if (certificates.Count == 0)
+                        {
+                            throw new Exception($"No certificates found for subject name: {subjectName}");
+                        }
+                        return certificates;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Write($"Error loading certificates: {ex.Message}");
+                throw;
+            }
+        }
 
 
         //sending api request (1st result)
@@ -418,59 +471,57 @@ namespace HealthMinistry.Controllers
             try
             {
                 var uploadUrl = _hmApiFiles;
-                Write($"Start Upload PDF. \n COA Path is {coaReportPdfPath} \n Url is {uploadUrl}");
-                var client = new RestClient(uploadUrl);
-                var request = new RestRequest(Method.POST);
+                Logger.Write($"Start Upload PDF. \n COA Path is {coaReportPdfPath} \n Url is {uploadUrl}");
 
-                bool test = uploadUrl.ToUpper().Contains("TEST");
+
+
+                bool isTestEnvironment = uploadUrl.ToUpper().Contains("TEST");
+
+
+                Logger.Write($"[DEBUG] Loading certificates: {DateTime.Now}");
+                X509Certificate2Collection certificates = LoadCertificates(isTestEnvironment, pfxPath);
+                Logger.Write($"[DEBUG] Certificates loaded: {DateTime.Now}");
+
                 ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
-                X509Certificate2Collection collection;
-                if (test)
-                {
-                    Write("test section");
-                    collection = new X509Certificate2Collection();
-                    collection.Import(pfxPath, "12345678", X509KeyStorageFlags.PersistKeySet);
-                }
-                else
-                {
-                    Write("Prod section");
-                    string subjectName = "Institute For Food Microbiology";
-
-                    X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
-                    store.Open(OpenFlags.ReadOnly);
-                    X509Certificate2Collection certificates = store.Certificates;
-                    X509Certificate2Collection foundCertificates = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
-                    collection = certificates.Find(X509FindType.FindBySubjectName, subjectName, false);
-
-
-                }
-
-                // Disable SSL certificate validation
 
 
 
+                var client = new RestClient(uploadUrl);
                 client.ClientCertificates = new X509CertificateCollection();
-                client.ClientCertificates.AddRange(collection);
-                //  ServicePointManager.SecurityProtocol = (SecurityProtocolType)(0xc0 | 0x300 | 0xc00);
+                client.ClientCertificates.AddRange(certificates);
+
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
 
 
+                var request = new RestRequest(Method.POST);
                 request.AlwaysMultipartFormData = true;
                 request.AddHeader("Content-Type", "multipart/form-data");
                 request.AddFile("", coaReportPdfPath);
 
                 var response = client.Execute(request);
 
-                Write($"Response Status code is : {response.StatusCode}");
-                Write($"Response Content = {response.Content} \n Ebd Upload PDF.");
+
+                string dt = DateTime.Now.ToString("dd-MM-yyyy HH-mm-ss");
+                Logger.LogRequestParameters(request, Path.Combine(LOG, "Upload Pdf Request" + dt + ".log"));
+                Logger.LogResponse(response, Path.Combine(LOG, "Upload Pdf Response" + dt + ".log"));
 
                 return response.Content;
             }
+            catch (HttpRequestException hex)
+            {
+                // Log the specific HTTP error
+                Logger.Write($"HTTP Request failed: {hex.Message}");
+                System.IO.File.WriteAllText(Path.Combine(LOG, "Error on SendRequest2FCS-" + DateTime.Now.ToString("dd MM yyyyy HH mm ss") + ".xml"), hex.Message);
+
+                throw;
+            }
             catch (Exception ex)
             {
-                Write($"From SendRequestWithPDF: {ex.Message}");
-                return Constants.msgList[5];
+                Logger.Write($"From SendRequestWithPDF: {ex.Message}");
+
+                return ConstantsMsg.msgList[5];
             }
+
         }
         #endregion
 
@@ -500,30 +551,27 @@ namespace HealthMinistry.Controllers
              </soapenv:Body>
           </soapenv:Envelope>", barcode, lab_code);
 
-                Write(xml);
+                Logger.Write(xml);
                 return xml;
             }
             catch (Exception e)
             {
-                Write($"From BuildInitialXML: {e.Message}");
-                return Constants.msgList[6];
+                Logger.Write($"From BuildInitialXML: {e.Message}");
+                return ConstantsMsg.msgList[6];
             }
         }
 
 
-
-
-
-        //converting xml to LabSampleFormResult object
-        public LabSampleFormResult ExtractLabSampleForm(XDocument xmlDoc)
+        public Sample_Form_Response ExtractLabSampleForm(XDocument xmlDoc)
         {
             try
             {
                 XNamespace ns = "http://schemas.datacontract.org/2004/07/FCS_LabsLib";
                 XNamespace dataContractNs = "http://schemas.datacontract.org/2004/07/FCS_LabsLib";
                 XNamespace xsiNs = "http://www.w3.org/2001/XMLSchema-instance";
+                xsiNs = "i:";
 
-                var result = new LabSampleFormResult();
+                var result = new Sample_Form_Response();// LabSampleFormResult();
 
                 var barcodeElement = xmlDoc.Descendants(ns + "Barcode").FirstOrDefault();
                 if (barcodeElement != null)
@@ -764,15 +812,13 @@ namespace HealthMinistry.Controllers
             }
             catch (Exception e)
             {
-                Write($"From ExtractLabSampleForm: {e.Message}");
+                Logger.Write($"From ExtractLabSampleForm: {e.Message}");
                 return null;
             }
 
 
         }
 
-        //creating xml document for sending to order_v2 (xml in sdg format)
-        //  private DOMDocument CreateNautilusXML(LabSampleFormResult obj, string barcode)
         private DOMDocument CreateNautilusXML(SdgNaut sdg)//, string barcode)
         {
             try
@@ -805,6 +851,7 @@ namespace HealthMinistry.Controllers
                 objSdg.appendChild(objDom.createElement("DESCRIPTION")).text = ConfigurationManager.AppSettings["SDG_DESC"];
                 objSdg.appendChild(objDom.createElement("U_FCS_MSG_ID")).text = "TEMP";
                 objSdg.appendChild(objDom.createElement("EXTERNAL_REFERENCE")).text = sdg.Barcode;
+                objSdg.appendChild(objDom.createElement("U_MINISTRY_OF_HEALTH")).text = sdg.U_MINISTRY_OF_HEALTH;
                 objSdg.appendChild(objDom.createElement("U_SDG_CLIENT")).text = sdg.Client.U_SDG_CLIENT;
                 objSdg.appendChild(objDom.createElement("U_PHONE")).text = sdg.Client.U_PHONE;
                 objSdg.appendChild(objDom.createElement("U_ADDRESS")).text = sdg.Client.U_ADDRESS;
@@ -840,6 +887,8 @@ namespace HealthMinistry.Controllers
                     objSample.appendChild(objDom.createElement("U_BATCH")).text = smpl.batchNum;
                     objSample.appendChild(objDom.createElement("U_TXT_SAMPLING_TIME")).text = smpl.SamplingDate;
                     objSample.appendChild(objDom.createElement("U_TXT_SAMPLING_TIME2")).text = smpl.SamplingTime;
+                    objSample.appendChild(objDom.createElement("U_FIELD_TEXT_1")).text = smpl.Producer_Name;
+                    objSample.appendChild(objDom.createElement("U_FIELD_TEXT_2")).text = sdg.Barcode;
 
 
                     foreach (AliquotObj aliq in smpl.aliquots)
@@ -861,295 +910,29 @@ namespace HealthMinistry.Controllers
                         objAliquot.appendChild(objDom.createElement("DESCRIPTION")).text = aliq.DESCRIPTION;
                         objAliquot.appendChild(objDom.createElement("U_TEST_TEMPLATE_EXTENDED")).text = aliq.U_TEST_TEMPLATE_EXTENDED;
                         objAliquot.appendChild(objDom.createElement("EXTERNAL_REFERENCE")).text = aliq.External_ref;
+                        objAliquot.appendChild(objDom.createElement("U_RETEST")).text = "F";
 
 
                     }
                 }
                 //debug mode
                 objDom.save(Path.Combine(LOG, "Login " + sdg.Barcode + ".xml"));
-                Write($"From Create_XML: xml obj created successfully");
+                Logger.Write($"From Create_XML: xml obj created successfully");
                 return objDom;
             }
             catch (Exception ex)
             {
-                Write($"From Create_XML: {ex.Message}");
+                Logger.Write($"From Create_XML: {ex.Message}");
                 return null;
             }
         }
 
         #endregion
 
-        #region result request
-
-
-        //creating a xml document for sending to fcs
-        #region creating xml for result request
-
-        private XmlDocument ParseToXML_res_1(COA_Report coaReport, string resReq)
-        {
-            try
-            {
-                var sdg = coaReport.Sdg;
-                string fileName = Path.GetFileName(coaReport.PdfPath);
-                List<ATTACHED_DOCUMENT> AD = new List<ATTACHED_DOCUMENT>() { new ATTACHED_DOCUMENT(fileName, 1, ".pdf", "?", resReq, coaReport.PdfPath) };
-
-                Attached_Document at = new Attached_Document(AD);
-                List<_LabNotes> LN = new List<_LabNotes>()
-                {
-                    new _LabNotes(sdg.Comments, "C"),
-                    new _LabNotes(sdg.U_COA_REMARKS, "A")
-                };
-
-                Report_Notes Report_Notes = new Report_Notes(LN);
-
-                List<Test_Result> TR = new List<Test_Result>() { };
-
-                Test_Results tr = new Test_Results(TR);
-
-                Report_Date reportDate = new Report_Date(coaReport.CreatedOn.Value.ToShortDateString());
-
-                string labReportVer = coaReport.Name.Substring(coaReport.Name.IndexOf("(") + 1,
-                    coaReport.Name.Length - coaReport.Name.IndexOf(")") - 1);
-
-                Request req = new Request(sdg.U_FOOD_TEMPERATURE, at, 4444, 13, coaReport.Name, int.Parse(labReportVer), false, "?", reportDate, Report_Notes, tr);
-
-                foreach (var sample in sdg.Samples.Where(x => x.Status != "X"))
-                {
-                    foreach (var aliq in sample.Aliqouts.Where(x => x.Status != "X"))
-                    {
-                        List<Result> result4Array = new List<Result>();
-                        var t = aliq.Tests;
-
-                        //get one correct resultf from results of aliq
-
-                        foreach (var test in aliq.Tests.Where(x => x.STATUS != "X"))
-                        {
-                            Result result = test.Results.Where(x => x.FormattedResult != null & x.REPORTED == "T").FirstOrDefault();
-
-                            if (result != null)
-                            {
-                                result4Array.Add(result);
-                                break;
-                            }
-
-                        }
-                    }
-
-                    XmlDocument xdoc = new XmlDocument();
-                    xdoc.Load(_xmlTemplateDirection);
-                    //xdoc.Save(Path.Combine(LOG, "_xml Template Direction " + coaReport.SdgId.Value + ".xml"));
-
-
-                    var nsmgr1 = new XmlNamespaceManager(xdoc.NameTable);
-                    nsmgr1.AddNamespace("fcs1", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-                    XmlNode requestNode = xdoc.GetElementsByTagName("fcs:Request")[0];
-
-                    foreach (PropertyInfo prop in req.GetType().GetProperties())
-                    {
-                        var x = prop.Name;
-
-                        if (classes.Contains(prop.Name))
-                        {
-                            XmlElement element = xdoc.CreateElement("fcs1", prop.Name,
-                                "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-
-                            switch (prop.Name)
-                            {
-                                case "Attached_Document":
-                                    element = GetAllChilds(req.Attached_Document.ATTACHED_DOCUMENT, "ATTACHED_DOCUMENT",
-                                        element, xdoc);
-                                    break;
-                                case "Report_Notes":
-                                    element = GetAllChilds(req.Report_Notes.LabNotes, "LabNotes", element, xdoc);
-                                    break;
-                                case "Test_Results":
-                                    element = GetAllChilds(req.Test_Results.Test_Result, "Test_Result", element, xdoc);
-                                    break;
-                                case "Report_Date":
-                                    element = GetAllChildsReport_Date(req.Report_Date, "Report_Date", element, xdoc);
-                                    break;
-                            }
-
-                            requestNode.AppendChild(element);
-                        }
-                        else
-                        {
-                            XmlElement element = AddXmlNode2(req, prop, xdoc);
-                            requestNode.AppendChild(element);
-                        }
-                    }
-
-                    string dt = DateTime.Now.ToString("dd-M-yyyy--HH-mm-ss");
-
-                    string XmlFileName = Path.Combine(LOG, "result " + dt + "_" + sdg.ExternalReference + ".xml");
-
-                    xdoc.Save(XmlFileName);
-
-                    Write($"From ParseToXML_res_1: xdoc created successfully");
-                    return xdoc;
-                }
-
-            }
-            catch (Exception e)
-            {
-                Write($"From ExtractLabSampleForm (result): {e.Message}");
-            }
-
-            return null;
-        }
-
-        protected XmlElement GetAllChildsReport_Date(Report_Date PropParent, string typeNode, XmlElement elementParent, XmlDocument xdoc)
-        {
-            try
-            {
-                XmlElement dayElement = xdoc.CreateElement("fcs1", "Day", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-                dayElement.InnerText = PropParent.Day;
-                elementParent.AppendChild(dayElement);
-
-                XmlElement monthElement = xdoc.CreateElement("fcs1", "Month", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-                monthElement.InnerText = PropParent.Month;
-                elementParent.AppendChild(monthElement);
-
-                XmlElement yearElement = xdoc.CreateElement("fcs1", "Year", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-                yearElement.InnerText = PropParent.Year;
-                elementParent.AppendChild(yearElement);
-
-                return elementParent;
-            }
-            catch (Exception e)
-            {
-                Write($"From GetAllChildsReport_Date: {e.Message}");
-                return null;
-            }
-        }
-
-        protected XmlElement GetAllChilds<T>(List<T> PropParent, string typeNode, XmlElement elementParent, XmlDocument xdoc) where T : class
-        {
-            try
-            {
-                foreach (var PropChilds in PropParent)
-                {
-                    XmlElement elementObj = xdoc.CreateElement("fcs1", typeNode, "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-
-                    foreach (PropertyInfo prop in PropChilds.GetType().GetProperties())
-                    {
-                        if (prop.Name == "Notes")
-                        {
-
-                            XmlElement elementChild = xdoc.CreateElement("fcs1", prop.Name, "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-
-                            elementChild = GetAllChildsLabNotes(PropChilds as Test_Result, "LabNotes", elementChild, xdoc);
-                            elementObj.AppendChild(elementChild);
-                        }
-                        else
-                        {
-                            XmlElement elementChild = AddXmlNode2(PropChilds, prop, xdoc);
-                            elementObj.AppendChild(elementChild);
-                        }
-                    }
-
-                    elementParent.AppendChild(elementObj);
-                }
-                return elementParent;
-            }
-            catch (Exception e)
-            {
-                Write($"From GetAllChilds: {e.Message}");
-                return null;
-            }
-        }
-
-        protected XmlElement AddXmlNode2<T>(T objParent, PropertyInfo prop, XmlDocument xdoc) where T : class
-        {
-            try
-            {
-                XmlElement element = xdoc.CreateElement("fcs1", prop.Name, "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-                string val = "";
-
-                // Handle DateTime values
-                if (prop.PropertyType == typeof(DateTime))
-                {
-                    DateTime dateValue = (DateTime)prop.GetValue(objParent, null);
-
-                    // Create elements for day, month, and year
-                    XmlElement dayElement = xdoc.CreateElement("fcs1", "Day", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-                    XmlElement monthElement = xdoc.CreateElement("fcs1", "Month", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-                    XmlElement yearElement = xdoc.CreateElement("fcs1", "Year", "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-
-                    // Set values for day, month, and year
-                    dayElement.InnerText = dateValue.Day.ToString();
-                    monthElement.InnerText = dateValue.Month.ToString();
-                    yearElement.InnerText = dateValue.Year.ToString();
-
-                    // Append day, month, and year elements to the main element
-                    element.AppendChild(dayElement);
-                    element.AppendChild(monthElement);
-                    element.AppendChild(yearElement);
-                }
-                else
-                {
-                    val = prop.GetValue(objParent, null) != null ? prop.GetValue(objParent, null).ToString() : "";
-
-                    // Handle boolean values
-                    if (prop.PropertyType == typeof(bool))
-                    {
-                        val = val.ToLower();
-                    }
-
-                    // Set the value for non-DateTime properties
-                    element.InnerText = val;
-                }
-
-                return element;
-            }
-            catch (Exception e)
-            {
-                Write($"From AddXmlNode2: {e.Message}");
-                return null;
-            }
-        }
-
-        protected XmlElement GetAllChildsLabNotes(Test_Result PropParent, string typeNode, XmlElement elementParent, XmlDocument xdoc)
-        {
-            try
-            {
-                foreach (var PropChilds in PropParent.Notes.Lab_Notes)
-                {
-                    XmlElement elementObj = xdoc.CreateElement("fcs1", typeNode, "http://schemas.datacontract.org/2004/07/FCS_LabsLib");
-
-                    foreach (PropertyInfo prop in PropChilds.GetType().GetProperties())
-                    {
-
-                        XmlElement element = AddXmlNode2(PropChilds, prop, xdoc);
-                        elementObj.AppendChild(element);
-
-                    }
-                    elementParent.AppendChild(elementObj);
-                }
-                return elementParent;
-            }
-            catch (Exception e)
-            {
-                Write($"From GetAllChildsLabNotes: {e.Message}");
-                return null;
-            }
-        }
-
-        #endregion
-
-
-        #endregion
 
         #region generic functions
 
-        //connecting to microb db
-        private void openSqlConnection()
-        {
-            string assemblyPath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            ExeConfigurationFileMap map = new ExeConfigurationFileMap();
-            map.ExeConfigFilename = assemblyPath + ".config";
-            Configuration cfg = ConfigurationManager.OpenMappedExeConfiguration(map, ConfigurationUserLevel.None);
-        }
+
 
         private DateTime? GetDate(XElement dateElements, XNamespace ns)
         {
@@ -1180,37 +963,14 @@ namespace HealthMinistry.Controllers
             catch (Exception ex)
             {
 
-                Write($"From GetDate: {ex.Message}");
+                Logger.Write($"From GetDate: {ex.Message}");
                 return null;
             }
 
             return null;
 
         }
-       
 
-
-        private void Write(string s)
-        {
-
-            try
-            {
-                string fullPath = Path.Combine(LOG, "Nautilus_WS" + "-" + DateTime.Now.ToString("dd-MM-yyyy") + ".txt");
-
-                using (FileStream stream = new FileStream(fullPath, FileMode.Append, FileAccess.Write))
-                {
-                    StreamWriter streamWriter = new StreamWriter(stream);
-                    streamWriter.WriteLine(DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff"));
-                    streamWriter.WriteLine(s);
-                    streamWriter.WriteLine();
-                    streamWriter.Close();
-                }
-            }
-            catch
-            {
-            }
-
-        }
 
         #endregion
 
@@ -1223,30 +983,6 @@ namespace HealthMinistry.Controllers
             // Simple regex to check for basic XML structure
             return Regex.IsMatch(input.Trim(), @"^<[^?].*>$", RegexOptions.Singleline);
         }
-        private void LogReuest(HttpWebRequest request)
-        {
 
-            Write(request.RequestUri.ToString());         // The URI of the request
-                                                          //    Write(request.Address             );// The endpoint being accessed
-            Write(request.Host);// The host name/authority
-            Write(request.ConnectionGroupName);// Name of connection group (useful for logging groups of requests)
-
-            ;// Headers that are useful for logging
-             //Write(request.Headers .Coun          );// All headers collection
-            Write(request.ContentType);// Content type being sent
-                                       // Write(request.ContentLength    );// Size of the request in bytes
-            Write(request.UserAgent);// User agent string
-            Write(request.Accept);// Accept header value
-
-            // Timing/Performance properties
-            Write(request.Timeout.ToString());// Request timeout value
-            Write(request.ReadWriteTimeout.ToString());// Read/write timeout value
-            Write(request.ContinueTimeout.ToString());// 100-continue timeout value
-
-            // Connection info
-            Write(request.ProtocolVersion.ToString());// HTTP protocol version
-            Write(request.ServicePoint.ToString());// Details about the connection to the server
-            Write(request.Proxy.ToString());
-        }
     }
 }

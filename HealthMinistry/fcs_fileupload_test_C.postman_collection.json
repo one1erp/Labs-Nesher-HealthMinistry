@@ -1,0 +1,51 @@
+{
+	"info": {
+		"_postman_id": "e7174499-7d82-408e-a879-2f4ee5515b2d",
+		"name": "fcs_fileupload_test_C",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "3526121",
+		"_collection_link": "https://winter-sunset-649516.postman.co/workspace/Fcs-lab-test~b8eeae9b-36c4-487e-a08f-398304152853/collection/3526121-e7174499-7d82-408e-a879-2f4ee5515b2d?action=share&source=collection_link&creator=3526121"
+	},
+	"item": [
+		{
+			"name": "fcs_fileupload_test",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "multipart/form-data",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "",
+							"type": "file",
+							"src": "/C:/Work/NesherProj/COA-Templates/food/2305-165805,31,2023,14,03,58.pdf"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://docsapitest.health.gov.il/api/fileupload/Upload",
+					"protocol": "https",
+					"host": [
+						"docsapitest",
+						"health",
+						"gov",
+						"il"
+					],
+					"path": [
+						"api",
+						"fileupload",
+						"Upload"
+					]
+				},
+				"description": "שליחת מסמך למשרד הבריאות על מנת לקבל מזהה"
+			},
+			"response": []
+		}
+	]
+}

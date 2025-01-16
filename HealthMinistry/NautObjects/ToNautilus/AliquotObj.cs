@@ -1,4 +1,4 @@
-﻿namespace HealthMinistry.NautObjects
+﻿namespace HealthMinistry.NautObjects.ToNautilus
 {
     public class AliquotObj
     {

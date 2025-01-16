@@ -46,9 +46,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="DAL">
-      <HintPath>..\..\..\..\..\..\..\work\NesherProj\dlls\DAL.dll</HintPath>
-    </Reference>
     <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=7.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.7.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
     </Reference>
@@ -84,6 +81,7 @@
     <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
     </Reference>
+    <Reference Include="System.ServiceModel" />
     <Reference Include="System.Text.Encodings.Web, Version=7.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Text.Encodings.Web.7.0.0\lib\net462\System.Text.Encodings.Web.dll</HintPath>
     </Reference>
@@ -168,18 +166,25 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
-    <Compile Include="NautObjects\AliquotObj.cs" />
-    <Compile Include="NautObjects\Constants.cs" />
-    <Compile Include="NautObjects\ClientObj.cs" />
+    <Compile Include="FCSObjects\ToFCS\Request.cs" />
+    <Compile Include="FCSObjects\ToFCS\Test_Result.cs" />
+    <Compile Include="Logic\Helpers.cs" />
+    <Compile Include="NautObjects\FromNautilus\CoaObj.cs" />
+    <Compile Include="Common\Logger.cs" />
+    <Compile Include="Logic\NautilusToFcs.cs" />
+    <Compile Include="NautObjects\FromNautilus\SdgNautRes.cs" />
+    <Compile Include="NautObjects\ToNautilus\AliquotObj.cs" />
+    <Compile Include="Common\Constants.cs" />
+    <Compile Include="NautObjects\ToNautilus\ClientObj.cs" />
     <Compile Include="Logic\FcsToNautilus.cs" />
-    <Compile Include="FCSObjects\ImporterDetails.cs" />
-    <Compile Include="FCSObjects\RequestedTest.cs" />
-    <Compile Include="FCSObjects\AmilDetails.cs" />
+    <Compile Include="FCSObjects\FromFCS\ImporterDetails.cs" />
+    <Compile Include="FCSObjects\FromFCS\RequestedTest.cs" />
+    <Compile Include="FCSObjects\FromFCS\AmilDetails.cs" />
     <Compile Include="Controllers\HomeController.cs" />
-    <Compile Include="FCSObjects\LabSampleFormResult.cs" />
-    <Compile Include="FCSObjects\resClasses.cs" />
-    <Compile Include="NautObjects\SampleObj.cs" />
-    <Compile Include="NautObjects\SdgNaut.cs" />
+    <Compile Include="FCSObjects\FromFCS\Sample_Form_Response.cs" />
+    <Compile Include="FCSObjects\ToFCS\resClasses.cs" />
+    <Compile Include="NautObjects\ToNautilus\SampleObj.cs" />
+    <Compile Include="NautObjects\ToNautilus\SdgNaut.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
@@ -210,6 +215,7 @@
       <Name>TestHealthMinistry%28FCS only%29</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
     <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>

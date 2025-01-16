@@ -1,0 +1,103 @@
+{
+	"info": {
+		"_postman_id": "6043d9e5-57b8-4568-a931-795e2da45538",
+		"name": "amir1 Copy 2",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "3526121",
+		"_collection_link": "https://winter-sunset-649516.postman.co/workspace/Fcs-lab-test~b8eeae9b-36c4-487e-a08f-398304152853/collection/3526121-6043d9e5-57b8-4568-a931-795e2da45538?action=share&source=collection_link&creator=3526121"
+	},
+	"item": [
+		{
+			"name": "Results Request",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {
+					"content-type": true
+				}
+			},
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "SOAPAction",
+						"value": "http://www.moh.gov.co.il/FoodApp/FCS_Labs/IFCS_Labs/Lab_Results_Form",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "text/xml",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:fcs=\"http://www.moh.gov.co.il/FoodApp/FCS_Labs\" xmlns:fcs1=\"http://schemas.datacontract.org/2004/07/FCS_LabsLib\">\r\n   <soapenv:Header/>\r\n   <soapenv:Body>\r\n      <fcs:Lab_Results_Form>\r\n         <!--Optional:-->\r\n         <fcs:Request>\r\n            <!--Optional:-->\r\n            <fcs1:Arrival_Temp></fcs1:Arrival_Temp>\r\n            <!--Optional:-->\r\n            <fcs1:Attached_Document>\r\n               <!--0 to 100 repetitions:-->\r\n               <fcs1:ATTACHED_DOCUMENT>\r\n                  <!--Optional:-->\r\n                  <fcs1:Document_Name>צרופה לתעודה</fcs1:Document_Name>\r\n                  <!--Optional:-->\r\n                  <fcs1:Document_Type_Code>2</fcs1:Document_Type_Code>\r\n                  <!--Optional:-->\r\n                  <fcs1:FileExt>jpg</fcs1:FileExt>\r\n                  <!--Optional:-->\r\n                  <fcs1:FileName></fcs1:FileName>\r\n                  <!--Optional:-->\r\n                  <fcs1:GUID></fcs1:GUID>\r\n                  <!--Optional:-->\r\n                  <fcs1:Link_To_Document>?</fcs1:Link_To_Document>\r\n               </fcs1:ATTACHED_DOCUMENT>\r\n            </fcs1:Attached_Document>\r\n            <!--Optional:-->\r\n            <fcs1:Barcode>387086</fcs1:Barcode>\r\n            <!--Optional:-->\r\n            <fcs1:Is_Complete>true</fcs1:Is_Complete>\r\n            <!--Optional:-->\r\n            <fcs1:Lab_Code>3</fcs1:Lab_Code>\r\n            <!--Optional:-->\r\n            <fcs1:Lab_Report_ID>M-2020/764</fcs1:Lab_Report_ID>\r\n            <!--Optional:-->\r\n            <fcs1:Lab_Report_Ver>1</fcs1:Lab_Report_Ver>\r\n            <!--Optional:-->\r\n            <fcs1:Matching>true</fcs1:Matching>\r\n            <!--Optional:-->\r\n            <fcs1:Organization></fcs1:Organization>\r\n            <!--Optional:-->\r\n            <fcs1:Package_Condition></fcs1:Package_Condition>\r\n            <!--Optional:-->\r\n            <fcs1:Report_Date>\r\n               <!--Optional:-->\r\n               <fcs1:Day>22</fcs1:Day>\r\n               <!--Optional:-->\r\n               <fcs1:Month>11</fcs1:Month>\r\n               <!--Optional:-->\r\n               <fcs1:Year>20</fcs1:Year>\r\n            </fcs1:Report_Date>\r\n            <!--Optional:-->\r\n            <fcs1:Report_Notes>\r\n               <!--0 to 100 repetitions:-->\r\n               <fcs1:LabNotes>\r\n                  <!--Optional:-->\r\n                  <fcs1:Note></fcs1:Note>\r\n                  <!--Optional:-->\r\n                  <fcs1:Note_Type></fcs1:Note_Type>\r\n               </fcs1:LabNotes>\r\n            </fcs1:Report_Notes>      \r\n              <!--Optional:-->\r\n            <fcs1:Sample_Form_Num>1</fcs1:Sample_Form_Num>\r\n            <!--Optional:-->\r\n            <fcs1:Test_Results>\r\n               <!--0 to 100 repetitions:-->\r\n               <fcs1:Test_Result>\r\n                  <!--Optional:-->\r\n                  <fcs1:Analyte_Name>שינוי במרקם/ ריח/ צבע</fcs1:Analyte_Name>\r\n                  <!--Optional:-->\r\n                  <fcs1:LIMS_Samp_ID>B-M-202003680</fcs1:LIMS_Samp_ID>\r\n                  <!--Optional:-->\r\n                  <fcs1:LOD>0.00</fcs1:LOD>\r\n                  <!--Optional:-->\r\n                  <fcs1:LOQ>0.00</fcs1:LOQ>\r\n                  <!--Optional:-->\r\n                  <fcs1:Lims_Test_Code>119</fcs1:Lims_Test_Code>\r\n                  <!--Optional:-->\r\n                  <fcs1:ManufResult></fcs1:ManufResult>\r\n                  <!--Optional:-->\r\n                  <fcs1:Marking></fcs1:Marking>\r\n                  <!--Optional:-->\r\n                  <fcs1:Measurement_Unit>גרם</fcs1:Measurement_Unit>\r\n                  <!--Optional:-->\r\n                  <fcs1:Measurement_Unit_Code>1</fcs1:Measurement_Unit_Code>\r\n                  <!--Optional:-->\r\n                  <fcs1:Method>?</fcs1:Method>\r\n                  <!--Optional:-->\r\n                  <fcs1:Notes>\r\n                     <!--0 to 100 repetitions:-->\r\n                     <fcs1:LabNotes>\r\n                        <!--Optional:-->\r\n                        <fcs1:Note></fcs1:Note>\r\n                        <!--Optional:-->\r\n                        <fcs1:Note_Type></fcs1:Note_Type>\r\n                     </fcs1:LabNotes>\r\n                  </fcs1:Notes>\r\n                  <!--Optional:-->\r\n                  <fcs1:Result>5.6</fcs1:Result>\r\n                  <!--Optional:-->\r\n                  <fcs1:Result_Num>1</fcs1:Result_Num>\r\n                  <!--Optional:-->\r\n                  <fcs1:Sample_Description>?</fcs1:Sample_Description>\r\n                  <!--Optional:-->\r\n                  <fcs1:Temprature>55</fcs1:Temprature>\r\n                  <!--Optional:-->\r\n                  <fcs1:Test_Name>כשר השתמרות</fcs1:Test_Name>\r\n                  <!--Optional:-->\r\n                  <fcs1:Test_Sub_Code>13</fcs1:Test_Sub_Code>\r\n                  <!--Optional:-->\r\n                  <fcs1:uncertainty></fcs1:uncertainty>\r\n               </fcs1:Test_Result>\r\n            </fcs1:Test_Results>\r\n            <!--Optional:-->\r\n            <fcs1:Tester_Name>ph</fcs1:Tester_Name>\r\n         </fcs:Request>\r\n      </fcs:Lab_Results_Form>\r\n   </soapenv:Body>\r\n</soapenv:Envelope>",
+					"options": {
+						"raw": {
+							"language": "xml"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://fcslabstest.health.gov.il/FCS_Labs",
+					"protocol": "https",
+					"host": [
+						"fcslabstest",
+						"health",
+						"gov",
+						"il"
+					],
+					"path": [
+						"FCS_Labs"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Sample Request",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {
+					"content-type": true
+				}
+			},
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "SOAPAction",
+						"value": "http://www.moh.gov.co.il/FoodApp/FCS_Labs/IFCS_Labs/Lab_Sample_Form",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "text/xml",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:fcs=\"http://www.moh.gov.co.il/FoodApp/FCS_Labs\" xmlns:fcs1=\"http://schemas.datacontract.org/2004/07/FCS_LabsLib\">\r\n   <soapenv:Header/>\r\n   <soapenv:Body>\r\n      <fcs:Lab_Sample_Form>\r\n         <!--Optional:-->\r\n         <fcs:Request>\r\n            <!--Optional:-->\r\n            <fcs1:Barcode>404589</fcs1:Barcode>\r\n            <fcs1:Lab_Code>9</fcs1:Lab_Code>\r\n         </fcs:Request>\r\n      </fcs:Lab_Sample_Form>\r\n   </soapenv:Body>\r\n</soapenv:Envelope>",
+					"options": {
+						"raw": {
+							"language": "xml"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://fcslabstest.health.gov.il/FCS_Labs",
+					"protocol": "https",
+					"host": [
+						"fcslabstest",
+						"health",
+						"gov",
+						"il"
+					],
+					"path": [
+						"FCS_Labs"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

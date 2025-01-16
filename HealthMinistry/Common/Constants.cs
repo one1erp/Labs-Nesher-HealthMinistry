@@ -1,9 +1,9 @@
 ﻿using System.Collections.Generic;
 
 
-namespace HealthMinistry.NautObjects
+namespace HealthMinistry.Common
 {
-    public static class Constants
+    public static class ConstantsMsg
     {
 
 
@@ -24,8 +24,8 @@ namespace HealthMinistry.NautObjects
                 "לקוח לא קיים, אנא פנה למנהל מערכת",
                 "לא נמצאה בדיקה או מזהה בדיקה לא קיים, אנא פנה למנהל מערכת",
                 "מזהה בדיקה לא קיים, אנא פנה למנהל מערכת",
-                "אין תמיכה בתצורה הישנה"
-         
+                "אין תמיכה בתצורה הישנה",
+                ",הזמנה חוזרת אפשרית רק במקרה של ביטול הקודמת.ההזמנה כבר קיימת במערכת"
             };
     }
 
